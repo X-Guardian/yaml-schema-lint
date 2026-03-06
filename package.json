@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "description": "Lint YAML files against JSON schemas using the yaml-language-server",
   "bin": {
-    "yaml-schema-lint": "./bin/yaml-schema-lint.js"
+    "yaml-schema-lint": "./dist/yaml-schema-lint.js"
   },
   "scripts": {
     "build": "tsc",
+    "build:bundle": "node esbuild.config.mjs",
     "test": "jest --config jest.config.cjs",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
@@ -27,38 +28,38 @@
     "github-actions"
   ],
   "license": "MIT",
-  "packageManager": "pnpm@10.28.2",
+  "packageManager": "pnpm@10.30.3+sha512.c961d1e0a2d8e354ecaa5166b822516668b7f44cb5bd95122d590dd81922f606f5473b6d23ec4a5be05e7fcd18e8488d47d978bbe981872f1145d06e9a740017",
   "engines": {
     "node": ">=18"
   },
   "files": [
-    "dist",
-    "bin"
+    "dist/yaml-schema-lint.js",
+    "dist/yaml-schema-lint.js.map",
+    "dist/yaml-schema-lint.js.LEGAL.txt"
   ],
-  "dependencies": {
-    "@commander-js/extra-typings": "^14.0.0",
-    "colorette": "^2.0.20",
-    "commander": "^14.0.1",
-    "fast-glob": "^3.3.3",
-    "request-light": "^0.8.0",
-    "vscode-languageserver-textdocument": "^1.0.12",
-    "yaml-language-server": "^1.21.0"
-  },
   "devDependencies": {
+    "@commander-js/extra-typings": "^14.0.0",
     "@eslint/js": "^10.0.1",
     "@types/jest": "^29.5.14",
     "@types/node": "^20.10.0",
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^8.56.1",
+    "colorette": "^2.0.20",
+    "commander": "^14.0.1",
+    "esbuild": "^0.27.3",
     "eslint": "^10.0.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-jest": "^29.15.0",
     "eslint-plugin-jsdoc": "^62.7.1",
     "eslint-plugin-prettier": "^5.5.5",
+    "fast-glob": "^3.3.3",
     "jest": "^29.7.0",
     "prettier": "^3.8.1",
+    "request-light": "^0.8.0",
     "ts-jest": "^29.2.0",
     "typescript": "^5.7.0",
-    "typescript-eslint": "^8.56.1"
+    "typescript-eslint": "^8.56.1",
+    "vscode-languageserver-textdocument": "^1.0.12",
+    "yaml-language-server": "^1.21.0"
   }
 }

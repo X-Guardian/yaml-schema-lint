@@ -15,7 +15,7 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['src/*.test.ts', 'eslint.config.mjs'],
+          allowDefaultProject: ['src/*.test.ts', 'eslint.config.mjs', 'esbuild.config.mjs', 'jest.config.cjs'],
         },
         tsconfigRootDir: import.meta.dirname,
       },
@@ -26,6 +26,6 @@ export default tseslint.config(
     ...jest.configs['flat/recommended'],
   },
   {
-    ignores: ['dist/', 'node_modules/', 'jest.config.cjs', 'bin/'],
+    ignores: ['dist/', 'node_modules/', 'bin/'],
   },
 );

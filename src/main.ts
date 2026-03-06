@@ -23,11 +23,12 @@ import {
   resolveFileGlobs,
 } from './yaml-lint';
 import { consoleDebug, consoleError, initConsoleDebug, ManagedError, safeProcessExit } from './utils';
+import { name, description, version } from '../package.json';
 
 const program = new Command()
-  .name('yaml-schema-lint')
-  .description('Lint YAML files against JSON schemas using the yaml-language-server')
-  .version('0.1.0')
+  .name(name)
+  .description(description)
+  .version(version)
   .argument('<patterns...>', 'YAML file paths or glob patterns (e.g. "**/*.yml")')
   .addOption(
     new Option(`${CMD_OPTIONS.settingsPath} <path>`, 'Path to settings JSON file with yaml.schemas').default(
