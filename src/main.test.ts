@@ -78,6 +78,7 @@ function buildCommand(): Command {
       ),
     )
     .addOption(new Option(CMD_OPTIONS.noFailOnNoFiles, 'Exit successfully when no files match the patterns'))
+    .addOption(new Option(CMD_OPTIONS.noFailOnWarnings, 'Do not exit with an error when only warnings are found'))
     .addOption(
       new Option(`${CMD_OPTIONS.debug} [true|false]`, 'Enable debug logging')
         .choices(['true', 'false'])
@@ -214,10 +215,20 @@ describe('yaml-schema-lint command', () => {
     expect(safeProcessExitSpy).toHaveBeenCalledWith(1);
   });
 
-  it('does not exit with error when only warnings are found', async () => {
+  it('exits with code 1 when only warnings are found', async () => {
     formatDiagnosticsSpy.mockReturnValue({ errorCount: 0, warningCount: 3 });
 
     const args = [...baseOptionsBuilder.build(), 'test.yaml'];
+
+    await expect(command.parseAsync(args, { from: 'user' })).rejects.toThrow('process.exit called');
+
+    expect(safeProcessExitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('does not exit with error when only warnings are found and --no-fail-on-warnings is set', async () => {
+    formatDiagnosticsSpy.mockReturnValue({ errorCount: 0, warningCount: 3 });
+
+    const args = [...baseOptionsBuilder.build(), CMD_OPTIONS.noFailOnWarnings, 'test.yaml'];
     await command.parseAsync(args, { from: 'user' });
 
     expect(safeProcessExitSpy).not.toHaveBeenCalled();

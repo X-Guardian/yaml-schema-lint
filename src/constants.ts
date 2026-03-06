@@ -10,6 +10,7 @@ export const CMD_OPTIONS = {
   outputFile: '--output-file',
   ignore: '--ignore',
   noFailOnNoFiles: '--no-fail-on-no-files',
+  noFailOnWarnings: '--no-fail-on-warnings',
 } as const;
 
 /** Process exit code indicating a lint error or fatal failure. */

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 /** https://nodejs.org/api/path.html */
 import path from 'node:path';
 /** https://nodejs.org/api/url.html */
-import { URL as NodeURL, fileURLToPath, pathToFileURL, resolve as urlResolve } from 'node:url';
+import { URL as NodeURL, fileURLToPath, pathToFileURL } from 'node:url';
 /** https://www.npmjs.com/package/colorette */
 import * as colorette from 'colorette';
 /** https://www.npmjs.com/package/fast-glob */
@@ -83,7 +83,7 @@ async function schemaRequestService(uri: string): Promise<string> {
 /** A workspace context for the yaml-language-server. */
 const workspaceContext = {
   resolveRelativePath: (relativePath: string, resource: string): string => {
-    return urlResolve(resource, relativePath);
+    return new URL(relativePath, resource).toString();
   },
 };
 
