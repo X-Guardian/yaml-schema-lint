@@ -35,7 +35,7 @@ const program = new Command()
       DEFAULT_SETTINGS_PATH,
     ),
   )
-  .addOption(new Option(`${CMD_OPTIONS.noSchemaStore}`, 'Disable fetching schemas from schemastore.org'))
+  .addOption(new Option(CMD_OPTIONS.noSchemaStore, 'Disable fetching schemas from schemastore.org'))
   .addOption(new Option(`${CMD_OPTIONS.cacheDir} <path>`, 'Cache directory').default(DEFAULT_CACHE_DIR))
   .addOption(
     new Option(`${CMD_OPTIONS.cacheTtl} <seconds>`, 'Schema store cache TTL in seconds')
@@ -46,7 +46,7 @@ const program = new Command()
     new Option(`${CMD_OPTIONS.format} <name>`, 'Output file format').choices(FORMAT_CHOICES).default(FORMAT_CHOICES[0]),
   )
   .addOption(new Option(`${CMD_OPTIONS.outputFile} <path>`, 'Write a report file (uses --format)'))
-  .addOption(new Option(`${CMD_OPTIONS.githubAnnotations}`, 'Print GitHub Actions annotation commands to stdout'))
+  .addOption(new Option(CMD_OPTIONS.githubAnnotations, 'Print GitHub Actions annotation commands to stdout'))
   .addOption(
     new Option(`${CMD_OPTIONS.debug} [true|false]`, 'Enable debug logging')
       .choices(['true', 'false'])
@@ -81,32 +81,32 @@ export async function main(patterns: string[], options: CmdOptions) {
     console.log('================\n');
 
     const files = resolveFileGlobs(patterns);
-    consoleDebug(`Resolved ${patterns.length} pattern(s) to ${files.length} file(s)`);
+    consoleDebug(`Resolved ${String(patterns.length)} pattern(s) to ${String(files.length)} file(s)`);
 
     if (files.length === 0) {
       throw new ManagedError(`No files found matching: ${patterns.join(', ')}`);
     }
 
     const settings = loadSchemaSettings(options.settingsPath);
-    consoleDebug(`Loaded ${settings.schemas.length} schema association(s) from ${options.settingsPath}`);
+    consoleDebug(`Loaded ${String(settings.schemas.length)} schema association(s) from ${options.settingsPath}`);
 
     const allSchemas = [...settings.schemas];
 
-    if (options.schemaStore !== false) {
+    if (options.schemaStore) {
       console.log('Loading schemas from schemastore.org...');
       const schemaStoreSchemas = await fetchSchemaStoreSchemas({
         cacheDir: options.cacheDir,
         cacheTtlSeconds: options.cacheTtl,
       });
-      consoleDebug(`Loaded ${schemaStoreSchemas.length} schema(s) from Schema Store`);
+      consoleDebug(`Loaded ${String(schemaStoreSchemas.length)} schema(s) from Schema Store`);
       allSchemas.push(...schemaStoreSchemas);
     }
 
-    consoleDebug(`Total schema associations: ${allSchemas.length}`);
+    consoleDebug(`Total schema associations: ${String(allSchemas.length)}`);
 
     const languageService = createLanguageService(allSchemas, settings.customTags);
 
-    console.log(`Linting ${files.length} file(s)...\n`);
+    console.log(`Linting ${String(files.length)} file(s)...\n`);
 
     const results = await lintFiles(languageService, files);
 
@@ -126,10 +126,12 @@ export async function main(patterns: string[], options: CmdOptions) {
     const cleanCount = results.filter((r) => r.diagnostics.length === 0).length;
 
     console.log('');
-    console.log(`Results: ${files.length} file(s) linted, ${errorCount} error(s), ${warningCount} warning(s)`);
+    console.log(
+      `Results: ${String(files.length)} file(s) linted, ${String(errorCount)} error(s), ${String(warningCount)} warning(s)`,
+    );
 
     if (cleanCount > 0) {
-      console.log(`  ${cleanCount} file(s) passed with no issues`);
+      console.log(`  ${String(cleanCount)} file(s) passed with no issues`);
     }
 
     if (options.outputFile) {

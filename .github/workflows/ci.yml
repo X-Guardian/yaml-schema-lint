@@ -23,7 +23,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: ESLint
-        run: pnpm eslint src/ --format json --output-file eslint-report.json
+        run: pnpm eslint . --format json --output-file eslint-report.json
         continue-on-error: true
 
       - name: Annotate ESLint results
@@ -79,7 +79,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Bundle
-        run: pnpm build:bundle
+        run: pnpm build
 
       - name: Verify bundle runs
         run: node dist/yaml-schema-lint.js --version

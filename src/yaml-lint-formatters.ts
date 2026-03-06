@@ -50,7 +50,9 @@ function mapSeverity(severity: DiagnosticSeverity | undefined): GitLabCodeQualit
  * @returns An MD5 hex digest
  */
 function fingerprint(filePath: string, line: number, message: string): string {
-  return createHash('md5').update(`${filePath}:${line}:${message}`).digest('hex');
+  return createHash('md5')
+    .update(`${filePath}:${String(line)}:${message}`)
+    .digest('hex');
 }
 
 /**
@@ -128,7 +130,7 @@ export function formatGitHubAnnotations(results: LintFileResult[]): string {
       const title = diag.source ?? 'yaml-lint';
 
       lines.push(
-        `::${level} file=${filePath},line=${line},endLine=${endLine},col=${col},endColumn=${endColumn},title=${title}::${diag.message}`,
+        `::${level} file=${filePath},line=${String(line)},endLine=${String(endLine)},col=${String(col)},endColumn=${String(endColumn)},title=${title}::${diag.message}`,
       );
     }
   }
@@ -147,10 +149,9 @@ const FORMATTERS: Record<FormatChoice, OutputFormatter> = {
  * @throws {Error} If the name is not registered
  */
 export function getFormatter(name: string): OutputFormatter {
-  const formatter = FORMATTERS[name as FormatChoice];
-  if (!formatter) {
-    const valid = Object.keys(FORMATTERS).join(', ');
-    throw new Error(`Unknown format "${name}". Valid formats: ${valid}`);
+  if (name in FORMATTERS) {
+    return FORMATTERS[name as FormatChoice];
   }
-  return formatter;
+  const valid = Object.keys(FORMATTERS).join(', ');
+  throw new Error(`Unknown format "${name}". Valid formats: ${valid}`);
 }

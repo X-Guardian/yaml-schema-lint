@@ -53,7 +53,7 @@ function getUriScheme(uri: string): string {
  */
 async function schemaRequestService(uri: string): Promise<string> {
   if (!uri) {
-    return Promise.reject('No schema specified');
+    return Promise.reject(new Error('No schema specified'));
   }
 
   const scheme = getUriScheme(uri);
@@ -67,12 +67,18 @@ async function schemaRequestService(uri: string): Promise<string> {
     const headers = { 'Accept-Encoding': 'gzip, deflate' };
     return xhr({ url: uri, followRedirects: 5, headers }).then(
       (response) => response.responseText,
-      (error: XHRResponse) =>
-        Promise.reject(error.responseText || getErrorStatusDescription(error.status) || String(error)),
+      (error: unknown) => {
+        const xhrError = error as XHRResponse;
+        return Promise.reject(
+          new Error(
+            xhrError.responseText || getErrorStatusDescription(xhrError.status) || 'Unknown schema fetch error',
+          ),
+        );
+      },
     );
   }
 
-  return Promise.reject(`Unsupported schema URI scheme: ${scheme}`);
+  return Promise.reject(new Error(`Unsupported schema URI scheme: ${scheme}`));
 }
 
 const workspaceContext = {
@@ -232,16 +238,21 @@ export function loadSchemaSettings(settingsPath: string): VscodeYamlSettings {
   }
 
   const raw = fs.readFileSync(settingsPath, 'utf-8');
-  let parsed: Record<string, unknown>;
+  let parsed: unknown;
 
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(raw) as unknown;
   } catch {
     consoleDebug(`Failed to parse settings file: ${settingsPath}`);
     return result;
   }
 
-  const yamlSchemas = parsed['yaml.schemas'];
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return result;
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const yamlSchemas = record['yaml.schemas'];
   if (yamlSchemas && typeof yamlSchemas === 'object' && !Array.isArray(yamlSchemas)) {
     for (const [uri, patterns] of Object.entries(yamlSchemas as Record<string, unknown>)) {
       const fileMatch = Array.isArray(patterns) ? (patterns as string[]) : [String(patterns)];
@@ -253,7 +264,7 @@ export function loadSchemaSettings(settingsPath: string): VscodeYamlSettings {
     }
   }
 
-  const customTags = parsed['yaml.customTags'];
+  const customTags = record['yaml.customTags'];
   if (Array.isArray(customTags)) {
     result.customTags = customTags.filter((tag): tag is string => typeof tag === 'string');
   }
@@ -388,14 +399,14 @@ export function formatDiagnostics(results: LintFileResult[]): { errorCount: numb
     console.log(colorette.bold(colorette.underline(filePath)));
 
     const maxLocLen = diagnostics.reduce((max, d) => {
-      const loc = `${d.range.start.line + 1}:${d.range.start.character + 1}`;
+      const loc = `${String(d.range.start.line + 1)}:${String(d.range.start.character + 1)}`;
       return Math.max(max, loc.length);
     }, 0);
 
     const maxSevLen = diagnostics.reduce((max, d) => Math.max(max, severityLabel(d.severity).length), 0);
 
     for (const diag of diagnostics) {
-      const loc = `${diag.range.start.line + 1}:${diag.range.start.character + 1}`;
+      const loc = `${String(diag.range.start.line + 1)}:${String(diag.range.start.character + 1)}`;
       const sevPlain = severityLabel(diag.severity);
       const sevColor = colorizedSeverity(diag.severity);
       const source = diag.source ? colorette.dim(`(${diag.source})`) : '';

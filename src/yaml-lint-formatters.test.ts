@@ -4,6 +4,24 @@ import { DiagnosticSeverity, type Diagnostic } from 'yaml-language-server';
 import type { LintFileResult } from './yaml-lint';
 import { formatGitHubAnnotations, gitlabCodeQualityFormatter, getFormatter } from './yaml-lint-formatters';
 
+/** Parsed GitLab Code Quality report entry for test assertions. */
+interface ParsedEntry {
+  description: string;
+  check_name: string;
+  fingerprint: string;
+  severity: string;
+  location: { path: string; lines: { begin: number } };
+}
+
+/**
+ * Parse a JSON string into an array of GitLab Code Quality entries.
+ * @param json - Raw JSON string to parse
+ * @returns Parsed code quality entries
+ */
+function parseEntries(json: string): ParsedEntry[] {
+  return JSON.parse(json) as ParsedEntry[];
+}
+
 /**
  * @param overrides Optional diagnostic field overrides
  * @returns A Diagnostic object
@@ -32,7 +50,7 @@ describe('gitlabCodeQualityFormatter', () => {
   it('returns an empty JSON array for no results', () => {
     const output = gitlabCodeQualityFormatter.formatToString([]);
 
-    expect(JSON.parse(output)).toEqual([]);
+    expect(parseEntries(output)).toEqual([]);
   });
 
   it('returns an empty JSON array when all files are clean', () => {
@@ -40,7 +58,7 @@ describe('gitlabCodeQualityFormatter', () => {
 
     const output = gitlabCodeQualityFormatter.formatToString(results);
 
-    expect(JSON.parse(output)).toEqual([]);
+    expect(parseEntries(output)).toEqual([]);
   });
 
   it('maps Error severity to major', () => {
@@ -48,7 +66,7 @@ describe('gitlabCodeQualityFormatter', () => {
       { filePath: 'test.yaml', diagnostics: [makeDiag({ severity: DiagnosticSeverity.Error })] },
     ];
 
-    const entries = JSON.parse(gitlabCodeQualityFormatter.formatToString(results));
+    const entries = parseEntries(gitlabCodeQualityFormatter.formatToString(results));
 
     expect(entries[0].severity).toBe('major');
   });
@@ -58,7 +76,7 @@ describe('gitlabCodeQualityFormatter', () => {
       { filePath: 'test.yaml', diagnostics: [makeDiag({ severity: DiagnosticSeverity.Warning })] },
     ];
 
-    const entries = JSON.parse(gitlabCodeQualityFormatter.formatToString(results));
+    const entries = parseEntries(gitlabCodeQualityFormatter.formatToString(results));
 
     expect(entries[0].severity).toBe('minor');
   });
@@ -68,7 +86,7 @@ describe('gitlabCodeQualityFormatter', () => {
       { filePath: 'test.yaml', diagnostics: [makeDiag({ severity: DiagnosticSeverity.Information })] },
     ];
 
-    const entries = JSON.parse(gitlabCodeQualityFormatter.formatToString(results));
+    const entries = parseEntries(gitlabCodeQualityFormatter.formatToString(results));
 
     expect(entries[0].severity).toBe('info');
   });
@@ -78,7 +96,7 @@ describe('gitlabCodeQualityFormatter', () => {
       { filePath: 'test.yaml', diagnostics: [makeDiag({ severity: DiagnosticSeverity.Hint })] },
     ];
 
-    const entries = JSON.parse(gitlabCodeQualityFormatter.formatToString(results));
+    const entries = parseEntries(gitlabCodeQualityFormatter.formatToString(results));
 
     expect(entries[0].severity).toBe('info');
   });
@@ -99,7 +117,7 @@ describe('gitlabCodeQualityFormatter', () => {
       },
     ];
 
-    const entries = JSON.parse(gitlabCodeQualityFormatter.formatToString(results));
+    const entries = parseEntries(gitlabCodeQualityFormatter.formatToString(results));
 
     expect(entries).toHaveLength(1);
     expect(entries[0]).toEqual({
@@ -114,7 +132,7 @@ describe('gitlabCodeQualityFormatter', () => {
   it('defaults check_name to yaml-lint when source is undefined', () => {
     const results: LintFileResult[] = [{ filePath: 'test.yaml', diagnostics: [makeDiag({ source: undefined })] }];
 
-    const entries = JSON.parse(gitlabCodeQualityFormatter.formatToString(results));
+    const entries = parseEntries(gitlabCodeQualityFormatter.formatToString(results));
 
     expect(entries[0].check_name).toBe('yaml-lint');
   });
@@ -127,7 +145,7 @@ describe('gitlabCodeQualityFormatter', () => {
       },
     ];
 
-    const entries = JSON.parse(gitlabCodeQualityFormatter.formatToString(results));
+    const entries = parseEntries(gitlabCodeQualityFormatter.formatToString(results));
 
     expect(entries[0].fingerprint).not.toBe(entries[1].fingerprint);
   });
@@ -138,7 +156,7 @@ describe('gitlabCodeQualityFormatter', () => {
       { filePath: 'b.yaml', diagnostics: [makeDiag({ message: 'err b1' }), makeDiag({ line: 1, message: 'err b2' })] },
     ];
 
-    const entries = JSON.parse(gitlabCodeQualityFormatter.formatToString(results));
+    const entries = parseEntries(gitlabCodeQualityFormatter.formatToString(results));
 
     expect(entries).toHaveLength(3);
     expect(entries[0].location.path).toBe('a.yaml');
@@ -149,7 +167,7 @@ describe('gitlabCodeQualityFormatter', () => {
   it('uses 1-based line numbers', () => {
     const results: LintFileResult[] = [{ filePath: 'test.yaml', diagnostics: [makeDiag({ line: 9 })] }];
 
-    const entries = JSON.parse(gitlabCodeQualityFormatter.formatToString(results));
+    const entries = parseEntries(gitlabCodeQualityFormatter.formatToString(results));
 
     expect(entries[0].location.lines.begin).toBe(10);
   });

@@ -1,3 +1,4 @@
+import { defineConfig, globalIgnores } from 'eslint/config';
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import eslintConfigPrettier from 'eslint-config-prettier';
@@ -5,27 +6,33 @@ import eslintPluginPrettier from 'eslint-plugin-prettier/recommended';
 import jsdoc from 'eslint-plugin-jsdoc';
 import jest from 'eslint-plugin-jest';
 
-export default tseslint.config(
+export default defineConfig([
   eslint.configs.recommended,
-  ...tseslint.configs.recommended,
-  jsdoc.configs['flat/recommended-typescript'],
   eslintConfigPrettier,
   eslintPluginPrettier,
   {
-    languageOptions: {
-      parserOptions: {
-        projectService: {
-          allowDefaultProject: ['src/*.test.ts', 'eslint.config.mjs', 'esbuild.config.mjs', 'jest.config.cjs'],
+    files: ['**/*.ts'],
+    extends: [
+      tseslint.configs.recommendedTypeChecked,
+      tseslint.configs.strictTypeChecked,
+      tseslint.configs.stylisticTypeChecked,
+      jsdoc.configs['flat/recommended-typescript'],
+      {
+        languageOptions: {
+          parserOptions: {
+            project: ['tsconfig.json', 'tsconfig.test.json'],
+          },
         },
-        tsconfigRootDir: import.meta.dirname,
       },
-    },
+    ],
+  },
+  {
+    files: ['**/*.{js,mjs,cjs}'],
+    extends: [jsdoc.configs['flat/recommended']],
   },
   {
     files: ['src/**/*.test.ts'],
-    ...jest.configs['flat/recommended'],
+    extends: [jest.configs['flat/recommended']],
   },
-  {
-    ignores: ['dist/', 'node_modules/', 'bin/'],
-  },
-);
+  globalIgnores(['dist/', 'node_modules/', 'bin/']),
+]);

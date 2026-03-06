@@ -1,3 +1,3 @@
 import { program } from './main';
 
-program.parseAsync();
+void program.parseAsync();

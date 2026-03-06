@@ -50,7 +50,7 @@ export function consoleError(msg: string) {
  * @param exitCode Optional code to exit with. If not provided, defaults to 1
  */
 export function safeProcessExit(exitCode = 1): never {
-  consoleDebug(`Exiting process with code ${exitCode}`);
+  consoleDebug(`Exiting process with code ${String(exitCode)}`);
 
   if (process.stdout.writableNeedDrain) {
     process.stdout.once('drain', () => {

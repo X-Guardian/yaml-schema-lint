@@ -11,8 +11,7 @@ import { DiagnosticSeverity } from 'yaml-language-server';
 import { main } from './main';
 
 jest.mock('./main', () => {
-  const actual = jest.requireActual('./main');
-  return { ...actual };
+  return { ...jest.requireActual<object>('./main') };
 });
 
 const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
@@ -52,7 +51,7 @@ function buildCommand(): Command {
         DEFAULT_SETTINGS_PATH,
       ),
     )
-    .addOption(new Option(`${CMD_OPTIONS.noSchemaStore}`, 'Disable fetching schemas from schemastore.org'))
+    .addOption(new Option(CMD_OPTIONS.noSchemaStore, 'Disable fetching schemas from schemastore.org'))
     .addOption(new Option(`${CMD_OPTIONS.cacheDir} <path>`, 'Cache directory').default(DEFAULT_CACHE_DIR))
     .addOption(
       new Option(`${CMD_OPTIONS.cacheTtl} <seconds>`, 'Schema store cache TTL in seconds')
@@ -65,7 +64,7 @@ function buildCommand(): Command {
         .default(FORMAT_CHOICES[0]),
     )
     .addOption(new Option(`${CMD_OPTIONS.outputFile} <path>`, 'Write a report file (uses --format)'))
-    .addOption(new Option(`${CMD_OPTIONS.githubAnnotations}`, 'Print GitHub Actions annotations to stdout'))
+    .addOption(new Option(CMD_OPTIONS.githubAnnotations, 'Print GitHub Actions annotations to stdout'))
     .addOption(
       new Option(`${CMD_OPTIONS.debug} [true|false]`, 'Enable debug logging')
         .choices(['true', 'false'])

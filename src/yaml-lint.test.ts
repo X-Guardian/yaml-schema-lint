@@ -29,7 +29,7 @@ jest.mock('colorette', () => ({
 
 jest.mock('request-light', () => ({
   xhr: jest.fn(),
-  getErrorStatusDescription: jest.fn((status: number) => `HTTP Error ${status}`),
+  getErrorStatusDescription: jest.fn((status: number) => `HTTP Error ${String(status)}`),
 }));
 
 const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
