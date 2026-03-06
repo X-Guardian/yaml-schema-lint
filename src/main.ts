@@ -57,6 +57,7 @@ const program = new Command()
     ),
   )
   .addOption(new Option(CMD_OPTIONS.noFailOnNoFiles, 'Exit successfully when no files match the patterns'))
+  .addOption(new Option(CMD_OPTIONS.noFailOnWarnings, 'Do not exit with an error when only warnings are found'))
   .addOption(
     new Option(`${CMD_OPTIONS.debug} [true|false]`, 'Enable debug logging')
       .choices(['true', 'false'])
@@ -75,6 +76,7 @@ interface CmdOptions {
   githubAnnotations?: true;
   ignore: string[];
   failOnNoFiles: boolean;
+  failOnWarnings: boolean;
   debug: boolean;
 }
 
@@ -157,7 +159,7 @@ export async function main(patterns: string[], options: CmdOptions) {
       console.log(`\nReport written to ${options.outputFile}`);
     }
 
-    if (errorCount > 0) {
+    if (errorCount > 0 || (warningCount > 0 && options.failOnWarnings)) {
       safeProcessExit(FAIL_EXIT_CODE);
     }
   } catch (error) {
