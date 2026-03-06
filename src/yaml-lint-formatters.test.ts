@@ -1,4 +1,6 @@
+/** https://nodejs.org/api/crypto.html */
 import { createHash } from 'node:crypto';
+/** https://www.npmjs.com/package/yaml-language-server */
 import { DiagnosticSeverity, type Diagnostic } from 'yaml-language-server';
 
 import type { LintFileResult } from './yaml-lint';
@@ -23,6 +25,7 @@ function parseEntries(json: string): ParsedEntry[] {
 }
 
 /**
+ * Create a test Diagnostic object with optional overrides.
  * @param overrides Optional diagnostic field overrides
  * @returns A Diagnostic object
  */

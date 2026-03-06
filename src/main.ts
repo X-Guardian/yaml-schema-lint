@@ -2,17 +2,21 @@
  * CLI to lint YAML files against JSON schemas using the yaml-language-server
  */
 
+/** https://nodejs.org/api/fs.html */
 import fs from 'node:fs';
+/** https://www.npmjs.com/package/@commander-js/extra-typings */
 import { Command, Option } from '@commander-js/extra-typings';
 
 import {
   CMD_OPTIONS,
   DEFAULT_CACHE_DIR,
   DEFAULT_CACHE_TTL_SECONDS,
+  DEFAULT_IGNORE_PATTERNS,
   DEFAULT_SETTINGS_PATH,
   FAIL_EXIT_CODE,
+  FORMAT_CHOICES,
 } from './constants';
-import { FORMAT_CHOICES, formatGitHubAnnotations, getFormatter } from './yaml-lint-formatters';
+import { formatGitHubAnnotations, getFormatter } from './yaml-lint-formatters';
 import {
   countDiagnostics,
   createLanguageService,
@@ -48,6 +52,12 @@ const program = new Command()
   .addOption(new Option(`${CMD_OPTIONS.outputFile} <path>`, 'Write a report file (uses --format)'))
   .addOption(new Option(CMD_OPTIONS.githubAnnotations, 'Print GitHub Actions annotation commands to stdout'))
   .addOption(
+    new Option(`${CMD_OPTIONS.ignore} <patterns...>`, 'Glob patterns to exclude from file matching').default(
+      DEFAULT_IGNORE_PATTERNS,
+    ),
+  )
+  .addOption(new Option(CMD_OPTIONS.noFailOnNoFiles, 'Exit successfully when no files match the patterns'))
+  .addOption(
     new Option(`${CMD_OPTIONS.debug} [true|false]`, 'Enable debug logging')
       .choices(['true', 'false'])
       .argParser((value) => value === 'true')
@@ -63,6 +73,8 @@ interface CmdOptions {
   format: string;
   outputFile?: string;
   githubAnnotations?: true;
+  ignore: string[];
+  failOnNoFiles: boolean;
   debug: boolean;
 }
 
@@ -80,11 +92,15 @@ export async function main(patterns: string[], options: CmdOptions) {
     console.log('yaml-schema-lint');
     console.log('================\n');
 
-    const files = resolveFileGlobs(patterns);
+    const files = resolveFileGlobs(patterns, options.ignore);
     consoleDebug(`Resolved ${String(patterns.length)} pattern(s) to ${String(files.length)} file(s)`);
 
     if (files.length === 0) {
-      throw new ManagedError(`No files found matching: ${patterns.join(', ')}`);
+      if (options.failOnNoFiles) {
+        throw new ManagedError(`No files found matching: ${patterns.join(', ')}`);
+      }
+      console.log(`No files found matching: ${patterns.join(', ')}`);
+      return;
     }
 
     const settings = loadSchemaSettings(options.settingsPath);

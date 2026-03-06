@@ -37,6 +37,8 @@ yaml-schema-lint [options] <patterns...>
 | `--format <name>` | `gitlab-codequality` | Output file format when `--output-file` is used. |
 | `--output-file <path>` | _(none)_ | Write an additional report file in the chosen format. |
 | `--github-annotations` | `false` | Print GitHub Actions annotation commands to stdout. |
+| `--ignore <patterns...>` | `**/node_modules/**` | Glob patterns to exclude from file matching. |
+| `--no-fail-on-no-files` | _(disabled)_ | Exit successfully when no files match the patterns. |
 | `--debug` | `false` | Enable debug logging. |
 
 ## Examples
@@ -69,6 +71,18 @@ Emit GitHub Actions annotations (for inline PR comments):
 
 ```bash
 yaml-schema-lint --github-annotations '**/*.yml'
+```
+
+Include files inside `node_modules` (excluded by default):
+
+```bash
+yaml-schema-lint --ignore '!**/node_modules/**' '**/*.yml'
+```
+
+Allow empty file matches without failing (useful in CI):
+
+```bash
+yaml-schema-lint --no-fail-on-no-files '**/*.yml'
 ```
 
 Use a custom cache directory with a 1-hour TTL:
@@ -175,8 +189,8 @@ Severity mapping:
 
 | Code | Meaning |
 |---|---|
-| `0` | All files passed (warnings are allowed). |
-| `1` | At least one error was found, or a fatal error occurred. |
+| `0` | All files passed (warnings are allowed), or no files matched with `--no-fail-on-no-files`. |
+| `1` | At least one error was found, no files matched (default), or a fatal error occurred. |
 
 ## CI integration
 

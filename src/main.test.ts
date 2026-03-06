@@ -1,13 +1,22 @@
+/** https://nodejs.org/api/fs.html */
 import fs from 'node:fs';
+/** https://www.npmjs.com/package/@commander-js/extra-typings */
 import { Command, Option } from '@commander-js/extra-typings';
+/** https://www.npmjs.com/package/yaml-language-server */
+import { DiagnosticSeverity, type LanguageService } from 'yaml-language-server';
 import * as yamlLint from './yaml-lint';
 import * as formatters from './yaml-lint-formatters';
 import * as utils from './utils';
-import { CMD_OPTIONS, DEFAULT_CACHE_DIR, DEFAULT_CACHE_TTL_SECONDS, DEFAULT_SETTINGS_PATH } from './constants';
+import {
+  CMD_OPTIONS,
+  DEFAULT_CACHE_DIR,
+  DEFAULT_CACHE_TTL_SECONDS,
+  DEFAULT_IGNORE_PATTERNS,
+  DEFAULT_SETTINGS_PATH,
+  FORMAT_CHOICES,
+} from './constants';
 import { createCommandOptions } from './test-utils';
 import type { LintFileResult } from './yaml-lint';
-import type { LanguageService } from 'yaml-language-server';
-import { DiagnosticSeverity } from 'yaml-language-server';
 import { main } from './main';
 
 jest.mock('./main', () => {
@@ -38,8 +47,6 @@ const mockLanguageService = {
  * @returns A configured Command instance
  */
 function buildCommand(): Command {
-  const { FORMAT_CHOICES } = formatters;
-
   const cmd = new Command();
   cmd.exitOverride();
   cmd.configureOutput({ outputError: (str: string) => str });
@@ -65,6 +72,12 @@ function buildCommand(): Command {
     )
     .addOption(new Option(`${CMD_OPTIONS.outputFile} <path>`, 'Write a report file (uses --format)'))
     .addOption(new Option(CMD_OPTIONS.githubAnnotations, 'Print GitHub Actions annotations to stdout'))
+    .addOption(
+      new Option(`${CMD_OPTIONS.ignore} <patterns...>`, 'Glob patterns to exclude from file matching').default(
+        DEFAULT_IGNORE_PATTERNS,
+      ),
+    )
+    .addOption(new Option(CMD_OPTIONS.noFailOnNoFiles, 'Exit successfully when no files match the patterns'))
     .addOption(
       new Option(`${CMD_OPTIONS.debug} [true|false]`, 'Enable debug logging')
         .choices(['true', 'false'])
@@ -159,7 +172,7 @@ describe('yaml-schema-lint command', () => {
     const args = [...baseOptionsBuilder.build(), 'dir/*.yml'];
     await command.parseAsync(args, { from: 'user' });
 
-    expect(resolveFileGlobsSpy).toHaveBeenCalledWith(['dir/*.yml']);
+    expect(resolveFileGlobsSpy).toHaveBeenCalledWith(['dir/*.yml'], DEFAULT_IGNORE_PATTERNS);
     expect(lintFilesSpy).toHaveBeenCalledWith(mockLanguageService, ['dir/a.yml', 'dir/b.yml']);
   });
 
@@ -179,6 +192,16 @@ describe('yaml-schema-lint command', () => {
 
     expect(consoleErrorSpy).toHaveBeenCalledWith('No files found matching: no-match/**/*.yml');
     expect(safeProcessExitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('exits successfully when no files match and --no-fail-on-no-files is set', async () => {
+    resolveFileGlobsSpy.mockReturnValue([]);
+
+    const args = [...baseOptionsBuilder.build(), CMD_OPTIONS.noFailOnNoFiles, 'no-match/**/*.yml'];
+    await command.parseAsync(args, { from: 'user' });
+
+    expect(consoleLogSpy).toHaveBeenCalledWith('No files found matching: no-match/**/*.yml');
+    expect(safeProcessExitSpy).not.toHaveBeenCalled();
   });
 
   it('exits with code 1 when errors are found', async () => {

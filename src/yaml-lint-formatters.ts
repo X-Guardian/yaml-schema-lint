@@ -1,17 +1,14 @@
+/** https://nodejs.org/api/crypto.html */
 import { createHash } from 'node:crypto';
+/** https://www.npmjs.com/package/yaml-language-server */
 import { DiagnosticSeverity, type Diagnostic } from 'yaml-language-server';
 
-import type { LintFileResult } from './yaml-lint';
+import type { FormatChoice } from './constants';
+import type { LintFileResult, OutputFormatter } from './interfaces';
 
-/** A formatter that converts lint results to a string suitable for writing to a file. */
-export interface OutputFormatter {
-  /** @param results The lint results to format */
-  formatToString(results: LintFileResult[]): string;
-}
+export type { OutputFormatter } from './interfaces';
 
-export const FORMAT_CHOICES = ['gitlab-codequality'] as const;
-export type FormatChoice = (typeof FORMAT_CHOICES)[number];
-
+/** A GitLab Code Quality report entry. */
 interface GitLabCodeQualityEntry {
   description: string;
   check_name: string;
@@ -150,7 +147,7 @@ const FORMATTERS: Record<FormatChoice, OutputFormatter> = {
  */
 export function getFormatter(name: string): OutputFormatter {
   if (name in FORMATTERS) {
-    return FORMATTERS[name as FormatChoice];
+    return FORMATTERS[name];
   }
   const valid = Object.keys(FORMATTERS).join(', ');
   throw new Error(`Unknown format "${name}". Valid formats: ${valid}`);

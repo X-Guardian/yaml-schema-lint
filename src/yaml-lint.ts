@@ -1,33 +1,32 @@
+/** https://nodejs.org/api/fs.html */
 import fs from 'node:fs';
+/** https://nodejs.org/api/path.html */
 import path from 'node:path';
+/** https://nodejs.org/api/url.html */
 import { URL as NodeURL, fileURLToPath, pathToFileURL, resolve as urlResolve } from 'node:url';
+/** https://www.npmjs.com/package/colorette */
 import * as colorette from 'colorette';
-import fg from 'fast-glob';
+/** https://www.npmjs.com/package/fast-glob */
+import * as fastGlob from 'fast-glob';
+/** https://www.npmjs.com/package/vscode-languageserver-textdocument */
 import { TextDocument } from 'vscode-languageserver-textdocument';
+/** https://www.npmjs.com/package/yaml-language-server */
 import {
   getLanguageService,
   type LanguageService,
   type LanguageSettings,
   type SchemasSettings,
   SchemaPriority,
-  type Diagnostic,
   DiagnosticSeverity,
 } from 'yaml-language-server';
+/** https://www.npmjs.com/package/request-light */
 import { xhr, getErrorStatusDescription, type XHRResponse } from 'request-light';
 
+import { CACHE_FILENAME, SCHEMA_STORE_CATALOG_URL, YAML_FILE_EXTENSIONS } from './constants';
+import type { LintFileResult, SchemaStoreCacheOptions, VscodeYamlSettings } from './interfaces';
 import { consoleDebug } from './utils';
 
-/** Result of linting a single file */
-export interface LintFileResult {
-  filePath: string;
-  diagnostics: Diagnostic[];
-}
-
-/** Parsed schema settings from .vscode/settings.json */
-export interface VscodeYamlSettings {
-  schemas: SchemasSettings[];
-  customTags: string[];
-}
+export type { LintFileResult, SchemaStoreCacheOptions, VscodeYamlSettings } from './interfaces';
 
 /**
  * Parse a URI string and return its scheme in lowercase.
@@ -81,15 +80,12 @@ async function schemaRequestService(uri: string): Promise<string> {
   return Promise.reject(new Error(`Unsupported schema URI scheme: ${scheme}`));
 }
 
+/** A workspace context for the yaml-language-server. */
 const workspaceContext = {
   resolveRelativePath: (relativePath: string, resource: string): string => {
     return urlResolve(resource, relativePath);
   },
 };
-
-const SCHEMA_STORE_CATALOG_URL = 'https://www.schemastore.org/api/json/catalog.json';
-const YAML_FILE_EXTENSIONS = ['.yml', '.yaml'];
-const CACHE_FILENAME = 'schemastore-catalog.json';
 
 interface SchemaStoreCatalogEntry {
   name?: string;
@@ -101,12 +97,6 @@ interface SchemaStoreCatalogEntry {
 
 interface SchemaStoreCatalog {
   schemas: SchemaStoreCatalogEntry[];
-}
-
-/** Options controlling how the Schema Store catalog is cached. */
-export interface SchemaStoreCacheOptions {
-  cacheDir: string;
-  cacheTtlSeconds: number;
 }
 
 /**
@@ -288,10 +278,11 @@ export function toFileUri(filePath: string): string {
  * All entries are passed through fast-glob with `dot: true` so that dotfiles
  * (e.g. `.gitlab-ci.yml`) are always matched.
  * @param patterns File paths or glob patterns
+ * @param ignore Glob patterns to exclude from matching
  * @returns Resolved, deduplicated file paths sorted alphabetically
  */
-export function resolveFileGlobs(patterns: string[]): string[] {
-  return fg.sync(patterns, { dot: true, unique: true }).sort();
+export function resolveFileGlobs(patterns: string[], ignore: string[]): string[] {
+  return fastGlob.sync(patterns, { dot: true, unique: true, ignore }).sort();
 }
 
 /**

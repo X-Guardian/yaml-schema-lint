@@ -1,6 +1,10 @@
+/** https://nodejs.org/api/fs.html */
 import fs from 'node:fs';
+/** https://nodejs.org/api/path.html */
 import path from 'node:path';
+/** https://nodejs.org/api/url.html */
 import { pathToFileURL } from 'node:url';
+/** https://www.npmjs.com/package/yaml-language-server */
 import { DiagnosticSeverity } from 'yaml-language-server';
 
 import fg from 'fast-glob';
@@ -376,25 +380,38 @@ describe('resolveFileGlobs', () => {
   it('passes all patterns to fast-glob with dot enabled', () => {
     syncSpy.mockReturnValue(['a.yaml', 'b.yml']);
 
-    const result = resolveFileGlobs(['a.yaml', 'b.yml']);
+    const result = resolveFileGlobs(['a.yaml', 'b.yml'], []);
 
-    expect(syncSpy).toHaveBeenCalledWith(['a.yaml', 'b.yml'], { dot: true, unique: true });
+    expect(syncSpy).toHaveBeenCalledWith(['a.yaml', 'b.yml'], { dot: true, unique: true, ignore: [] });
     expect(result).toEqual(['a.yaml', 'b.yml']);
   });
 
   it('expands glob patterns including dotfiles', () => {
     syncSpy.mockReturnValue(['.gitlab-ci.yml', 'dir/one.yml', 'dir/two.yml']);
 
-    const result = resolveFileGlobs(['**/*.yml']);
+    const result = resolveFileGlobs(['**/*.yml'], []);
 
-    expect(syncSpy).toHaveBeenCalledWith(['**/*.yml'], { dot: true, unique: true });
+    expect(syncSpy).toHaveBeenCalledWith(['**/*.yml'], { dot: true, unique: true, ignore: [] });
     expect(result).toEqual(['.gitlab-ci.yml', 'dir/one.yml', 'dir/two.yml']);
+  });
+
+  it('passes ignore patterns to fast-glob', () => {
+    syncSpy.mockReturnValue(['src/config.yml']);
+
+    const result = resolveFileGlobs(['**/*.yml'], ['**/node_modules/**']);
+
+    expect(syncSpy).toHaveBeenCalledWith(['**/*.yml'], {
+      dot: true,
+      unique: true,
+      ignore: ['**/node_modules/**'],
+    });
+    expect(result).toEqual(['src/config.yml']);
   });
 
   it('deduplicates files matched by multiple patterns', () => {
     syncSpy.mockReturnValue(['shared.yml']);
 
-    const result = resolveFileGlobs(['shared.yml', '*.yml']);
+    const result = resolveFileGlobs(['shared.yml', '*.yml'], []);
 
     expect(result).toEqual(['shared.yml']);
   });
@@ -402,7 +419,7 @@ describe('resolveFileGlobs', () => {
   it('sorts results alphabetically', () => {
     syncSpy.mockReturnValue(['c.yml', 'a.yml']);
 
-    const result = resolveFileGlobs(['*.yml']);
+    const result = resolveFileGlobs(['*.yml'], []);
 
     expect(result).toEqual(['a.yml', 'c.yml']);
   });
@@ -410,7 +427,7 @@ describe('resolveFileGlobs', () => {
   it('returns empty array when nothing matches', () => {
     syncSpy.mockReturnValue([]);
 
-    const result = resolveFileGlobs(['no-match/**/*.yml']);
+    const result = resolveFileGlobs(['no-match/**/*.yml'], []);
 
     expect(result).toEqual([]);
   });
