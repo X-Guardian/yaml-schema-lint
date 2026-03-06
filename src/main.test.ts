@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { Command, Option } from 'commander';
+import { Command, Option } from '@commander-js/extra-typings';
 import * as yamlLint from './yaml-lint';
 import * as formatters from './yaml-lint-formatters';
 import * as utils from './utils';

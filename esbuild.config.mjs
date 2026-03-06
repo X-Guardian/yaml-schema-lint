@@ -45,7 +45,7 @@ const ctx = await esbuild.context({
   entryPoints: ['src/cli.ts'],
   bundle: true,
   platform: 'node',
-  target: 'node18',
+  target: 'node20',
   mainFields: ['module', 'main'],
   outfile: 'dist/yaml-schema-lint.js',
   banner: { js: '#!/usr/bin/env node' },

@@ -3,7 +3,7 @@
  */
 
 import fs from 'node:fs';
-import { Command, Option } from 'commander';
+import { Command, Option } from '@commander-js/extra-typings';
 
 import {
   CMD_OPTIONS,
