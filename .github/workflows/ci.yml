@@ -70,7 +70,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: X-Guardian/yaml-schema-lint-action@v0.2.0-beta.2
+      - uses: X-Guardian/yaml-schema-lint-action@fix-action
         with:
           patterns: "'**/*.yml' '**/*.yaml'"
 
