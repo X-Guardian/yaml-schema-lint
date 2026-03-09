@@ -1,5 +1,7 @@
 # yaml-schema-lint
 
+[![npm][npm-badge]][npm-listing]
+
 Lint YAML files against JSON schemas using the [yaml-language-server](https://www.npmjs.com/package/yaml-language-server) programmatic API. Validates syntax and schema compliance, with schemas loaded from `.vscode/settings.json` and [schemastore.org](https://www.schemastore.org/).
 
 ## Installation
@@ -164,3 +166,6 @@ See the [action README](https://github.com/X-Guardian/yaml-schema-lint-action) f
 ## License
 
 MIT
+
+[npm-badge]: https://img.shields.io/npm/v/yaml-schema-lint.svg
+[npm-listing]: https://www.npmjs.com/package/yaml-schema-lint
