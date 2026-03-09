@@ -86,57 +86,75 @@ function checkName(diag: Diagnostic): string {
   return diag.source ?? 'yaml-lint';
 }
 
+/** JSON report severity strings. */
+type JsonSeverity = 'error' | 'warning' | 'information' | 'hint';
+
+/** A single diagnostic in the JSON report format. */
+interface JsonDiagnosticEntry {
+  message: string;
+  severity: JsonSeverity;
+  source: string;
+  range: {
+    start: { line: number; character: number };
+    end: { line: number; character: number };
+  };
+}
+
+/** A per-file entry in the JSON report format. */
+interface JsonFileEntry {
+  filePath: string;
+  diagnostics: JsonDiagnosticEntry[];
+}
+
 /**
- * Map a DiagnosticSeverity to its GitHub Actions annotation command.
+ * Map a DiagnosticSeverity to a portable JSON string.
  * @param severity The diagnostic severity
- * @returns The annotation command string ("error", "warning", or "notice")
+ * @returns A lowercase severity string
  */
-function ghAnnotationLevel(severity: DiagnosticSeverity | undefined): 'error' | 'warning' | 'notice' {
+function jsonSeverity(severity: DiagnosticSeverity | undefined): JsonSeverity {
   switch (severity) {
     case DiagnosticSeverity.Error:
       return 'error';
     case DiagnosticSeverity.Warning:
       return 'warning';
     case DiagnosticSeverity.Information:
+      return 'information';
     case DiagnosticSeverity.Hint:
-      return 'notice';
+      return 'hint';
     default:
-      return 'notice';
+      return 'warning';
   }
 }
 
 /**
- * Format lint results as GitHub Actions workflow annotation commands.
+ * Convert lint results to a portable JSON report.
  *
- * Each diagnostic becomes a `::error`, `::warning`, or `::notice` line
- * that GitHub Actions renders as an inline annotation on the PR diff.
- * @param results The lint results to format
- * @returns A multi-line string of annotation commands, or empty string if no diagnostics
- * @see https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/workflow-commands-for-github-actions
+ * Uses 1-based line/column numbers and string severity values so
+ * downstream consumers (e.g. a GitHub Action) don't need to know
+ * about the yaml-language-server DiagnosticSeverity enum.
  */
-export function formatGitHubAnnotations(results: LintFileResult[]): string {
-  const lines: string[] = [];
+export const jsonFormatter: OutputFormatter = {
+  formatToString(results: LintFileResult[]): string {
+    const entries: JsonFileEntry[] = results.map(({ filePath, diagnostics }) => ({
+      filePath,
+      diagnostics: diagnostics.map((diag) => ({
+        message: diag.message,
+        severity: jsonSeverity(diag.severity),
+        source: diag.source ?? 'yaml-lint',
+        range: {
+          start: { line: diag.range.start.line + 1, character: diag.range.start.character + 1 },
+          end: { line: diag.range.end.line + 1, character: diag.range.end.character + 1 },
+        },
+      })),
+    }));
 
-  for (const { filePath, diagnostics } of results) {
-    for (const diag of diagnostics) {
-      const level = ghAnnotationLevel(diag.severity);
-      const line = diag.range.start.line + 1;
-      const col = diag.range.start.character + 1;
-      const endLine = diag.range.end.line + 1;
-      const endColumn = diag.range.end.character + 1;
-      const title = diag.source ?? 'yaml-lint';
-
-      lines.push(
-        `::${level} file=${filePath},line=${String(line)},endLine=${String(endLine)},col=${String(col)},endColumn=${String(endColumn)},title=${title}::${diag.message}`,
-      );
-    }
-  }
-
-  return lines.join('\n');
-}
+    return JSON.stringify(entries, null, 2);
+  },
+};
 
 const FORMATTERS: Record<FormatChoice, OutputFormatter> = {
   'gitlab-codequality': gitlabCodeQualityFormatter,
+  json: jsonFormatter,
 };
 
 /**

@@ -16,9 +16,8 @@ import {
   FAIL_EXIT_CODE,
   FORMAT_CHOICES,
 } from './constants';
-import { formatGitHubAnnotations, getFormatter } from './yaml-lint-formatters';
+import { getFormatter } from './yaml-lint-formatters';
 import {
-  countDiagnostics,
   createLanguageService,
   fetchSchemaStoreSchemas,
   loadSchemaSettings,
@@ -50,7 +49,6 @@ const program = new Command()
     new Option(`${CMD_OPTIONS.format} <name>`, 'Output file format').choices(FORMAT_CHOICES).default(FORMAT_CHOICES[0]),
   )
   .addOption(new Option(`${CMD_OPTIONS.outputFile} <path>`, 'Write a report file (uses --format)'))
-  .addOption(new Option(CMD_OPTIONS.githubAnnotations, 'Print GitHub Actions annotation commands to stdout'))
   .addOption(
     new Option(`${CMD_OPTIONS.ignore} <patterns...>`, 'Glob patterns to exclude from file matching').default(
       DEFAULT_IGNORE_PATTERNS,
@@ -73,7 +71,6 @@ interface CmdOptions {
   cacheTtl: number;
   format: string;
   outputFile?: string;
-  githubAnnotations?: true;
   ignore: string[];
   failOnNoFiles: boolean;
   failOnWarnings: boolean;
@@ -128,18 +125,7 @@ export async function main(patterns: string[], options: CmdOptions) {
 
     const results = await lintFiles(languageService, files);
 
-    let errorCount: number;
-    let warningCount: number;
-
-    if (options.githubAnnotations) {
-      const annotations = formatGitHubAnnotations(results);
-      if (annotations) {
-        console.log(annotations);
-      }
-      ({ errorCount, warningCount } = countDiagnostics(results));
-    } else {
-      ({ errorCount, warningCount } = formatDiagnostics(results));
-    }
+    const { errorCount, warningCount } = formatDiagnostics(results);
 
     const cleanCount = results.filter((r) => r.diagnostics.length === 0).length;
 

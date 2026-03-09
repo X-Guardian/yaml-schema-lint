@@ -4,7 +4,7 @@ export const CMD_OPTIONS = {
   noSchemaStore: '--no-schema-store',
   cacheDir: '--cache-dir',
   cacheTtl: '--cache-ttl',
-  githubAnnotations: '--github-annotations',
+
   debug: '--debug',
   format: '--format',
   outputFile: '--output-file',
@@ -38,6 +38,6 @@ export const YAML_FILE_EXTENSIONS = ['.yml', '.yaml'];
 export const CACHE_FILENAME = 'schemastore-catalog.json';
 
 /** Valid formatter names accepted by the `--format` CLI option. */
-export const FORMAT_CHOICES = ['gitlab-codequality'];
+export const FORMAT_CHOICES = ['gitlab-codequality', 'json'];
 /** Type alias for a valid formatter name. */
 export type FormatChoice = (typeof FORMAT_CHOICES)[number];
