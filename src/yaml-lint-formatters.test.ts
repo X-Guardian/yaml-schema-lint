@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { DiagnosticSeverity, type Diagnostic } from 'yaml-language-server';
 
 import type { LintFileResult } from './yaml-lint';
-import { formatGitHubAnnotations, gitlabCodeQualityFormatter, getFormatter } from './yaml-lint-formatters';
+import { gitlabCodeQualityFormatter, jsonFormatter, getFormatter } from './yaml-lint-formatters';
 
 /** Parsed GitLab Code Quality report entry for test assertions. */
 interface ParsedEntry {
@@ -176,106 +176,150 @@ describe('gitlabCodeQualityFormatter', () => {
   });
 });
 
-describe('formatGitHubAnnotations', () => {
-  it('returns empty string for no results', () => {
-    expect(formatGitHubAnnotations([])).toBe('');
+/** Parsed JSON report entry for test assertions. */
+interface JsonFileEntry {
+  filePath: string;
+  diagnostics: {
+    message: string;
+    severity: string;
+    source: string;
+    range: {
+      start: { line: number; character: number };
+      end: { line: number; character: number };
+    };
+  }[];
+}
+
+/**
+ * Parse a JSON report string into an array of file entries.
+ * @param json Raw JSON string
+ * @returns Parsed file entries
+ */
+function parseJsonReport(json: string): JsonFileEntry[] {
+  return JSON.parse(json) as JsonFileEntry[];
+}
+
+describe('jsonFormatter', () => {
+  it('returns an empty JSON array for no results', () => {
+    expect(parseJsonReport(jsonFormatter.formatToString([]))).toEqual([]);
   });
 
-  it('returns empty string when all files are clean', () => {
+  it('includes clean files with empty diagnostics', () => {
     const results: LintFileResult[] = [{ filePath: 'clean.yaml', diagnostics: [] }];
 
-    expect(formatGitHubAnnotations(results)).toBe('');
+    const entries = parseJsonReport(jsonFormatter.formatToString(results));
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].filePath).toBe('clean.yaml');
+    expect(entries[0].diagnostics).toEqual([]);
   });
 
-  it('maps Error severity to ::error', () => {
+  it('maps Error severity to "error"', () => {
     const results: LintFileResult[] = [
-      { filePath: 'test.yaml', diagnostics: [makeDiag({ severity: DiagnosticSeverity.Error, message: 'bad' })] },
+      { filePath: 'test.yaml', diagnostics: [makeDiag({ severity: DiagnosticSeverity.Error })] },
     ];
 
-    expect(formatGitHubAnnotations(results)).toContain('::error ');
+    const entries = parseJsonReport(jsonFormatter.formatToString(results));
+
+    expect(entries[0].diagnostics[0].severity).toBe('error');
   });
 
-  it('maps Warning severity to ::warning', () => {
+  it('maps Warning severity to "warning"', () => {
     const results: LintFileResult[] = [
-      { filePath: 'test.yaml', diagnostics: [makeDiag({ severity: DiagnosticSeverity.Warning, message: 'warn' })] },
+      { filePath: 'test.yaml', diagnostics: [makeDiag({ severity: DiagnosticSeverity.Warning })] },
     ];
 
-    expect(formatGitHubAnnotations(results)).toContain('::warning ');
+    const entries = parseJsonReport(jsonFormatter.formatToString(results));
+
+    expect(entries[0].diagnostics[0].severity).toBe('warning');
   });
 
-  it('maps Information severity to ::notice', () => {
+  it('maps Information severity to "information"', () => {
     const results: LintFileResult[] = [
-      { filePath: 'test.yaml', diagnostics: [makeDiag({ severity: DiagnosticSeverity.Information, message: 'info' })] },
+      { filePath: 'test.yaml', diagnostics: [makeDiag({ severity: DiagnosticSeverity.Information })] },
     ];
 
-    expect(formatGitHubAnnotations(results)).toContain('::notice ');
+    const entries = parseJsonReport(jsonFormatter.formatToString(results));
+
+    expect(entries[0].diagnostics[0].severity).toBe('information');
   });
 
-  it('maps Hint severity to ::notice', () => {
+  it('maps Hint severity to "hint"', () => {
     const results: LintFileResult[] = [
-      { filePath: 'test.yaml', diagnostics: [makeDiag({ severity: DiagnosticSeverity.Hint, message: 'hint' })] },
+      { filePath: 'test.yaml', diagnostics: [makeDiag({ severity: DiagnosticSeverity.Hint })] },
     ];
 
-    expect(formatGitHubAnnotations(results)).toContain('::notice ');
+    const entries = parseJsonReport(jsonFormatter.formatToString(results));
+
+    expect(entries[0].diagnostics[0].severity).toBe('hint');
   });
 
-  it('includes file, line, col, endLine, endColumn, and title parameters', () => {
+  it('produces valid entry structure with 1-based positions', () => {
     const results: LintFileResult[] = [
       {
         filePath: 'config.yaml',
-        diagnostics: [makeDiag({ line: 4, character: 2, message: 'Unexpected key', source: 'yaml-schema' })],
-      },
-    ];
-
-    const output = formatGitHubAnnotations(results);
-
-    expect(output).toBe(
-      '::error file=config.yaml,line=5,endLine=5,col=3,endColumn=4,title=yaml-schema::Unexpected key',
-    );
-  });
-
-  it('defaults title to yaml-lint when source is undefined', () => {
-    const results: LintFileResult[] = [{ filePath: 'test.yaml', diagnostics: [makeDiag({ source: undefined })] }];
-
-    expect(formatGitHubAnnotations(results)).toContain('title=yaml-lint::');
-  });
-
-  it('handles multiple files and diagnostics', () => {
-    const results: LintFileResult[] = [
-      { filePath: 'a.yaml', diagnostics: [makeDiag({ message: 'err a' })] },
-      {
-        filePath: 'b.yaml',
         diagnostics: [
-          makeDiag({ message: 'err b1', severity: DiagnosticSeverity.Warning }),
-          makeDiag({ line: 1, message: 'err b2' }),
+          makeDiag({
+            line: 4,
+            character: 2,
+            message: 'Unexpected key',
+            severity: DiagnosticSeverity.Error,
+            source: 'yaml-schema',
+          }),
         ],
       },
     ];
 
-    const lines = formatGitHubAnnotations(results).split('\n');
+    const entries = parseJsonReport(jsonFormatter.formatToString(results));
 
-    expect(lines).toHaveLength(3);
-    expect(lines[0]).toContain('file=a.yaml');
-    expect(lines[0]).toContain('::err a');
-    expect(lines[1]).toContain('::warning ');
-    expect(lines[1]).toContain('file=b.yaml');
-    expect(lines[2]).toContain('::error ');
-    expect(lines[2]).toContain('file=b.yaml');
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toEqual({
+      filePath: 'config.yaml',
+      diagnostics: [
+        {
+          message: 'Unexpected key',
+          severity: 'error',
+          source: 'yaml-schema',
+          range: {
+            start: { line: 5, character: 3 },
+            end: { line: 5, character: 4 },
+          },
+        },
+      ],
+    });
   });
 
-  it('uses 1-based line and column numbers', () => {
-    const results: LintFileResult[] = [{ filePath: 'test.yaml', diagnostics: [makeDiag({ line: 9, character: 3 })] }];
+  it('defaults source to "yaml-lint" when source is undefined', () => {
+    const results: LintFileResult[] = [{ filePath: 'test.yaml', diagnostics: [makeDiag({ source: undefined })] }];
 
-    const output = formatGitHubAnnotations(results);
+    const entries = parseJsonReport(jsonFormatter.formatToString(results));
 
-    expect(output).toContain('line=10');
-    expect(output).toContain('col=4');
+    expect(entries[0].diagnostics[0].source).toBe('yaml-lint');
+  });
+
+  it('collects diagnostics from multiple files', () => {
+    const results: LintFileResult[] = [
+      { filePath: 'a.yaml', diagnostics: [makeDiag({ message: 'err a' })] },
+      { filePath: 'b.yaml', diagnostics: [makeDiag({ message: 'err b1' }), makeDiag({ line: 1, message: 'err b2' })] },
+    ];
+
+    const entries = parseJsonReport(jsonFormatter.formatToString(results));
+
+    expect(entries).toHaveLength(2);
+    expect(entries[0].filePath).toBe('a.yaml');
+    expect(entries[0].diagnostics).toHaveLength(1);
+    expect(entries[1].filePath).toBe('b.yaml');
+    expect(entries[1].diagnostics).toHaveLength(2);
   });
 });
 
 describe('getFormatter', () => {
   it('returns the gitlab-codequality formatter', () => {
     expect(getFormatter('gitlab-codequality')).toBe(gitlabCodeQualityFormatter);
+  });
+
+  it('returns the json formatter', () => {
+    expect(getFormatter('json')).toBe(jsonFormatter);
   });
 
   it('throws for an unknown format name', () => {

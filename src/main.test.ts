@@ -32,7 +32,6 @@ const loadSchemaSettingsSpy = jest.spyOn(yamlLint, 'loadSchemaSettings');
 const fetchSchemaStoreSchemasSpy = jest.spyOn(yamlLint, 'fetchSchemaStoreSchemas');
 const createLanguageServiceSpy = jest.spyOn(yamlLint, 'createLanguageService');
 const lintFilesSpy = jest.spyOn(yamlLint, 'lintFiles');
-const countDiagnosticsSpy = jest.spyOn(yamlLint, 'countDiagnostics');
 const formatDiagnosticsSpy = jest.spyOn(yamlLint, 'formatDiagnostics');
 const writeFileSyncSpy = jest.spyOn(fs, 'writeFileSync').mockImplementation();
 
@@ -71,7 +70,6 @@ function buildCommand(): Command {
         .default(FORMAT_CHOICES[0]),
     )
     .addOption(new Option(`${CMD_OPTIONS.outputFile} <path>`, 'Write a report file (uses --format)'))
-    .addOption(new Option(CMD_OPTIONS.githubAnnotations, 'Print GitHub Actions annotations to stdout'))
     .addOption(
       new Option(`${CMD_OPTIONS.ignore} <patterns...>`, 'Glob patterns to exclude from file matching').default(
         DEFAULT_IGNORE_PATTERNS,
@@ -111,7 +109,6 @@ beforeEach(() => {
   fetchSchemaStoreSchemasSpy.mockResolvedValue([]);
   createLanguageServiceSpy.mockReturnValue(mockLanguageService);
   lintFilesSpy.mockResolvedValue([]);
-  countDiagnosticsSpy.mockReturnValue({ errorCount: 0, warningCount: 0 });
   formatDiagnosticsSpy.mockReturnValue({ errorCount: 0, warningCount: 0 });
 });
 
@@ -365,57 +362,5 @@ describe('yaml-schema-lint command', () => {
     await command.parseAsync(args, { from: 'user' });
 
     expect(fetchSchemaStoreSchemasSpy).toHaveBeenCalledWith(expect.objectContaining({ cacheTtlSeconds: 7200 }));
-  });
-
-  it('does not print GitHub annotations by default', async () => {
-    const formatGitHubAnnotationsSpy = jest.spyOn(formatters, 'formatGitHubAnnotations');
-
-    const args = [...baseOptionsBuilder.build(), 'test.yaml'];
-    await command.parseAsync(args, { from: 'user' });
-
-    expect(formatGitHubAnnotationsSpy).not.toHaveBeenCalled();
-
-    formatGitHubAnnotationsSpy.mockRestore();
-  });
-
-  it('prints GitHub annotations when --github-annotations is specified', async () => {
-    const formatGitHubAnnotationsSpy = jest.spyOn(formatters, 'formatGitHubAnnotations');
-    formatGitHubAnnotationsSpy.mockReturnValue('::error file=test.yaml,line=1::mock annotation');
-
-    const args = [...baseOptionsBuilder.clone().build(), CMD_OPTIONS.githubAnnotations, 'test.yaml'];
-    await command.parseAsync(args, { from: 'user' });
-
-    expect(formatGitHubAnnotationsSpy).toHaveBeenCalled();
-    expect(consoleLogSpy).toHaveBeenCalledWith('::error file=test.yaml,line=1::mock annotation');
-
-    formatGitHubAnnotationsSpy.mockRestore();
-  });
-
-  it('skips per-diagnostic console output when --github-annotations is specified', async () => {
-    const formatGitHubAnnotationsSpy = jest.spyOn(formatters, 'formatGitHubAnnotations');
-    formatGitHubAnnotationsSpy.mockReturnValue('::error file=test.yaml,line=1::mock');
-
-    const args = [...baseOptionsBuilder.clone().build(), CMD_OPTIONS.githubAnnotations, 'test.yaml'];
-    await command.parseAsync(args, { from: 'user' });
-
-    expect(formatDiagnosticsSpy).not.toHaveBeenCalled();
-
-    formatGitHubAnnotationsSpy.mockRestore();
-  });
-
-  it('does not print empty annotations string when there are no diagnostics', async () => {
-    const formatGitHubAnnotationsSpy = jest.spyOn(formatters, 'formatGitHubAnnotations');
-    formatGitHubAnnotationsSpy.mockReturnValue('');
-
-    const args = [...baseOptionsBuilder.clone().build(), CMD_OPTIONS.githubAnnotations, 'test.yaml'];
-    await command.parseAsync(args, { from: 'user' });
-
-    expect(formatGitHubAnnotationsSpy).toHaveBeenCalled();
-    const annotationCalls = consoleLogSpy.mock.calls.filter(
-      (call) => typeof call[0] === 'string' && call[0].startsWith('::'),
-    );
-    expect(annotationCalls).toHaveLength(0);
-
-    formatGitHubAnnotationsSpy.mockRestore();
   });
 });

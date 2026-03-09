@@ -1,5 +1,7 @@
 # yaml-schema-lint
 
+[![npm][npm-badge]][npm-listing]
+
 Lint YAML files against JSON schemas using the [yaml-language-server](https://www.npmjs.com/package/yaml-language-server) programmatic API. Validates syntax and schema compliance, with schemas loaded from `.vscode/settings.json` and [schemastore.org](https://www.schemastore.org/).
 
 ## Installation
@@ -22,80 +24,32 @@ yaml-schema-lint [options] <patterns...>
 
 ### Arguments
 
-| Argument | Description |
-|---|---|
+| Argument        | Description                                                                                               |
+| --------------- | --------------------------------------------------------------------------------------------------------- |
 | `<patterns...>` | One or more YAML file paths or glob patterns. Quote globs to prevent shell expansion (e.g. `'**/*.yml'`). |
 
 ### Options
 
-| Option | Default | Description |
-|---|---|---|
-| `--settings-path <path>` | `.vscode/settings.json` | Path to a JSON settings file containing `yaml.schemas` and `yaml.customTags`. |
-| `--no-schema-store` | _(enabled)_ | Disable fetching schemas from schemastore.org. |
-| `--cache-dir <path>` | `.cache/yaml-schema-lint` | Directory for caching the Schema Store catalog. |
-| `--cache-ttl <seconds>` | `86400` (24h) | How long the cached Schema Store catalog is considered fresh. |
-| `--format <name>` | `gitlab-codequality` | Output file format when `--output-file` is used. |
-| `--output-file <path>` | _(none)_ | Write an additional report file in the chosen format. |
-| `--github-annotations` | `false` | Print GitHub Actions annotation commands to stdout. |
-| `--ignore <patterns...>` | `**/node_modules/**` | Glob patterns to exclude from file matching. |
-| `--no-fail-on-warnings` | _(disabled)_ | Do not exit with an error when only warnings are found. |
-| `--no-fail-on-no-files` | _(disabled)_ | Exit successfully when no files match the patterns. |
-| `--debug` | `false` | Enable debug logging. |
+| Option                   | Default                   | Description                                                                     |
+| ------------------------ | ------------------------- | ------------------------------------------------------------------------------- |
+| `--settings-path <path>` | `.vscode/settings.json`   | Path to a JSON settings file containing `yaml.schemas` and `yaml.customTags`.   |
+| `--no-schema-store`      | _(enabled)_               | Disable fetching schemas from schemastore.org.                                  |
+| `--cache-dir <path>`     | `.cache/yaml-schema-lint` | Directory for caching the Schema Store catalog.                                 |
+| `--cache-ttl <seconds>`  | `86400` (24h)             | How long the cached Schema Store catalog is considered fresh.                   |
+| `--format <name>`        | `gitlab-codequality`      | Output file format when `--output-file` is used (`gitlab-codequality`, `json`). |
+| `--output-file <path>`   | _(none)_                  | Write an additional report file in the chosen format.                           |
+| `--ignore <patterns...>` | `**/node_modules/**`      | Glob patterns to exclude from file matching.                                    |
+| `--no-fail-on-warnings`  | _(disabled)_              | Do not exit with an error when only warnings are found.                         |
+| `--no-fail-on-no-files`  | _(disabled)_              | Exit successfully when no files match the patterns.                             |
+| `--debug`                | `false`                   | Enable debug logging.                                                           |
 
 ## Examples
 
-Lint all YAML files in the repository:
-
 ```bash
 yaml-schema-lint '**/*.yml' '**/*.yaml'
-```
-
-Lint with a custom settings file and debug output:
-
-```bash
-yaml-schema-lint --settings-path custom/settings.json --debug '**/*.yml'
-```
-
-Generate a GitLab Code Quality report alongside console output:
-
-```bash
-yaml-schema-lint '**/*.yml' --output-file gl-codequality.json
-```
-
-Skip Schema Store and use only local schema associations:
-
-```bash
+yaml-schema-lint --settings-path custom/settings.json '**/*.yml'
 yaml-schema-lint --no-schema-store '**/*.yml'
-```
-
-Emit GitHub Actions annotations (for inline PR comments):
-
-```bash
-yaml-schema-lint --github-annotations '**/*.yml'
-```
-
-Include files inside `node_modules` (excluded by default):
-
-```bash
-yaml-schema-lint --ignore '!**/node_modules/**' '**/*.yml'
-```
-
-Treat warnings as non-fatal (exit 0 if no errors):
-
-```bash
-yaml-schema-lint --no-fail-on-warnings '**/*.yml'
-```
-
-Allow empty file matches without failing (useful in CI):
-
-```bash
-yaml-schema-lint --no-fail-on-no-files '**/*.yml'
-```
-
-Use a custom cache directory with a 1-hour TTL:
-
-```bash
-yaml-schema-lint --cache-dir /tmp/yaml-cache --cache-ttl 3600 '**/*.yml'
+yaml-schema-lint '**/*.yml' --output-file gl-codequality.json
 ```
 
 ## Schema resolution
@@ -125,40 +79,16 @@ Schemas are resolved from three sources, in order of priority:
 
 ## Output
 
-By default, human-readable diagnostics are printed to the console with colorized severity:
+By default, human-readable diagnostics are printed to the console with colorized severity and summary:
 
 ```
 config.yaml
   5:3   error    Unexpected property   (yaml-schema)
   12:7  warning  Missing "stage"       (yaml-schema)
-```
 
-A summary line always follows:
-
-```
 Results: 5 file(s) linted, 1 error(s), 1 warning(s)
   3 file(s) passed with no issues
 ```
-
-### GitHub Actions annotations
-
-When `--github-annotations` is enabled, [workflow commands](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/workflow-commands-for-github-actions) are printed to stdout **instead of** the per-diagnostic console lines (the summary line is still printed). This avoids duplication since GitHub Actions renders the annotations in the job log, as inline PR diff comments, and as a summary above the log view.
-
-```
-::error file=.gitlab-ci.yml,line=5,endLine=5,col=3,endColumn=10,title=yaml-schema::Property job_name is not allowed.
-::warning file=config.yaml,line=12,endLine=12,col=7,endColumn=15,title=yaml-schema::Missing required property "stage"
-```
-
-Severity mapping:
-
-| yaml-language-server | GitHub annotation |
-|---|---|
-| Error | `::error` |
-| Warning | `::warning` |
-| Information | `::notice` |
-| Hint | `::notice` |
-
-Note: GitHub limits annotations to 10 warnings + 10 errors per step and 50 per job. The tool emits all annotations; GitHub truncates at the limit.
 
 ### Report files
 
@@ -166,38 +96,36 @@ When `--output-file` is provided, an additional report file is written in the fo
 
 #### `gitlab-codequality`
 
-Produces a JSON array conforming to the [GitLab Code Quality report format](https://docs.gitlab.com/ci/testing/code_quality/#code-quality-report-format):
-
-```json
-[
-  {
-    "description": "Property job_name is not allowed.",
-    "check_name": "yaml-schema",
-    "fingerprint": "a1b2c3...",
-    "severity": "major",
-    "location": {
-      "path": ".gitlab-ci.yml",
-      "lines": { "begin": 5 }
-    }
-  }
-]
-```
+Produces a JSON array conforming to the [GitLab Code Quality report format](https://docs.gitlab.com/ci/testing/code_quality/#code-quality-report-format)
 
 Severity mapping:
 
 | yaml-language-server | GitLab Code Quality |
-|---|---|
-| Error | `major` |
-| Warning | `minor` |
-| Information | `info` |
-| Hint | `info` |
+| -------------------- | ------------------- |
+| Error                | `major`             |
+| Warning              | `minor`             |
+| Information          | `info`              |
+| Hint                 | `info`              |
+
+#### `json`
+
+Produces a JSON array of per-file results with 1-based line/column numbers and string severity values. This format is consumed by the [GitHub Action](https://github.com/X-Guardian/yaml-schema-lint-action) to create Check Runs.
+
+Severity mapping:
+
+| yaml-language-server | JSON          |
+| -------------------- | ------------- |
+| Error                | `error`       |
+| Warning              | `warning`     |
+| Information          | `information` |
+| Hint                 | `hint`        |
 
 ## Exit codes
 
-| Code | Meaning |
-|---|---|
-| `0` | All files passed with no errors or warnings, or `--no-fail-on-warnings` is set and no errors were found, or no files matched with `--no-fail-on-no-files`. |
-| `1` | At least one error or warning was found (default), no files matched (default), or a fatal error occurred. |
+| Code | Meaning                                                                                                                                                    |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | All files passed with no errors or warnings, or `--no-fail-on-warnings` is set and no errors were found, or no files matched with `--no-fail-on-no-files`. |
+| `1`  | At least one error or warning was found (default), no files matched (default), or a fatal error occurred.                                                  |
 
 ## CI integration
 
@@ -206,8 +134,9 @@ Severity mapping:
 ```yaml
 yaml-lint:
   stage: validate
+  image: node:24-slim
   script:
-    - npx yaml-schema-lint '**/*.yml' --output-file gl-codequality.json
+    - npx yaml-schema-lint '**/*.yml' --format gitlab-codequality --output-file gl-codequality.json
   artifacts:
     reports:
       codequality: gl-codequality.json
@@ -215,11 +144,28 @@ yaml-lint:
 
 ### GitHub Actions
 
+The [yaml-schema-lint-action](https://github.com/X-Guardian/yaml-schema-lint-action) runs yaml-schema-lint and creates a GitHub Check with inline annotations and a markdown summary:
+
 ```yaml
-- name: Lint YAML
-  run: npx yaml-schema-lint --github-annotations '**/*.yml'
+yaml-lint:
+  runs-on: ubuntu-latest
+  permissions:
+    contents: read
+    checks: write
+    pull-requests: read
+  steps:
+    - uses: actions/checkout@v4
+
+    - uses: X-Guardian/yaml-schema-lint-action@v1
+      with:
+        patterns: "'**/*.yml' '**/*.yaml'"
 ```
+
+See the [action README](https://github.com/X-Guardian/yaml-schema-lint-action) for all available inputs.
 
 ## License
 
 MIT
+
+[npm-badge]: https://img.shields.io/npm/v/yaml-schema-lint.svg
+[npm-listing]: https://www.npmjs.com/package/yaml-schema-lint
