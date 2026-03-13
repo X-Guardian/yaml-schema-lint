@@ -77,14 +77,7 @@ Schemas are resolved from three sources, in order of priority:
 
 By default, human-readable diagnostics are printed to the console with colorized severity and summary:
 
-```text
-config.yaml
-  5:3   error    Unexpected property   (yaml-schema)
-  12:7  warning  Missing "stage"       (yaml-schema)
-
-Results: 5 file(s) linted, 1 error(s), 1 warning(s)
-  3 file(s) passed with no issues
-```
+![Example output](docs/output-example.svg)
 
 ### Report files
 
