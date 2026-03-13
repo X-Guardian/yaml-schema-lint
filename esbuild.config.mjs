@@ -1,4 +1,5 @@
 import * as esbuild from 'esbuild';
+import esbuildPluginLicense from 'esbuild-plugin-license';
 import process from 'node:process';
 import console from 'node:console';
 
@@ -51,9 +52,31 @@ const ctx = await esbuild.context({
   banner: { js: '#!/usr/bin/env node' },
   sourcemap: true,
   minify: true,
-  legalComments: 'linked',
+  legalComments: 'none',
   logLevel: 'info',
-  plugins: [redirectUmdToEsm, stubPrettier],
+  plugins: [
+    redirectUmdToEsm,
+    stubPrettier,
+    esbuildPluginLicense({
+      thirdParty: {
+        includePrivate: false,
+        output: {
+          file: 'dist/THIRD-PARTY-LICENSES.txt',
+          template(dependencies) {
+            return dependencies
+              .map(
+                (dep) =>
+                  `${dep.packageJson.name}@${dep.packageJson.version}\n` +
+                  `License: ${dep.packageJson.license}\n` +
+                  `Repository: ${dep.packageJson.repository?.url || 'N/A'}\n` +
+                  `\n${dep.licenseText || 'No license text found.'}\n`,
+              )
+              .join('\n' + '-'.repeat(70) + '\n\n');
+          },
+        },
+      },
+    }),
+  ],
 });
 
 if (isWatch) {

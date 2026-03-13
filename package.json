@@ -46,7 +46,7 @@
   "files": [
     "dist/yaml-schema-lint.js",
     "dist/yaml-schema-lint.js.map",
-    "dist/yaml-schema-lint.js.LEGAL.txt"
+    "dist/THIRD-PARTY-LICENSES.txt"
   ],
   "devDependencies": {
     "@commander-js/extra-typings": "^14.0.0",
@@ -58,6 +58,7 @@
     "colorette": "^2.0.20",
     "commander": "^14.0.1",
     "esbuild": "^0.27.3",
+    "esbuild-plugin-license": "^1.2.3",
     "eslint": "^10.0.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-jest": "^29.15.0",

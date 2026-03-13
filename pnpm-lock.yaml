@@ -35,6 +35,9 @@ importers:
       esbuild:
         specifier: ^0.27.3
         version: 0.27.3
+      esbuild-plugin-license:
+        specifier: ^1.2.3
+        version: 1.2.3(esbuild@0.27.3)
       eslint:
         specifier: ^10.0.2
         version: 10.0.2
@@ -1086,6 +1089,11 @@ packages:
 
   error-ex@1.3.4:
     resolution: {integrity: sha512-sqQamAnR14VgCr1A618A3sGrygcpK+HEbenA/HiEAkkUwcZIIB/tgWqHFxWgOyDh4nB4JCRimh79dR5Ywc9MDQ==}
+
+  esbuild-plugin-license@1.2.3:
+    resolution: {integrity: sha512-/ovWsIFHYIRqapsPCojMRHFppCgU3jFTVSu9r6MjpUArCWukL64+NwYJkX28ZXzYtw/cOYkGmbC3EhX0qwnn9w==}
+    peerDependencies:
+      esbuild: '*'
 
   esbuild@0.27.3:
     resolution: {integrity: sha512-8VwMnyGCONIs6cWue2IdpHxHnAjzxnw2Zr7MkVxB2vjmQ2ivqGFb4LEG3SMnv0Gb2F/G/2yA8zUaiL1gywDCCg==}
@@ -3152,6 +3160,10 @@ snapshots:
   error-ex@1.3.4:
     dependencies:
       is-arrayish: 0.2.1
+
+  esbuild-plugin-license@1.2.3(esbuild@0.27.3):
+    dependencies:
+      esbuild: 0.27.3
 
   esbuild@0.27.3:
     optionalDependencies:

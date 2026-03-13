@@ -1,6 +1,7 @@
 # yaml-schema-lint
 
 [![npm][npm-badge]][npm-listing]
+[![npm downloads][npm-downloads]][npm-listing]
 
 Lint YAML files against JSON schemas using the [yaml-language-server](https://www.npmjs.com/package/yaml-language-server) programmatic API.
 Validates syntax and schema compliance, with schemas loaded from a settings file and [schemastore.org](https://www.schemastore.org/).
@@ -164,3 +165,4 @@ MIT
 
 [npm-badge]: https://img.shields.io/npm/v/yaml-schema-lint.svg
 [npm-listing]: https://www.npmjs.com/package/yaml-schema-lint
+[npm-downloads]: https://img.shields.io/npm/dm/yaml-schema-lint.svg
