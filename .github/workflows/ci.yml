@@ -61,7 +61,7 @@ jobs:
       - name: Run tests
         run: pnpm exec jest --config jest.config.cjs --ci --coverage
 
-  yaml-lint:
+  yaml-schema-lint:
     runs-on: ubuntu-latest
     permissions:
       contents: read
