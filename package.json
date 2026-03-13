@@ -1,6 +1,6 @@
 {
   "name": "yaml-schema-lint",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "commonjs",
   "description": "Lint YAML files against JSON schemas using the yaml-language-server",
   "bin": {
@@ -45,7 +45,6 @@
   },
   "files": [
     "dist/yaml-schema-lint.js",
-    "dist/yaml-schema-lint.js.map",
     "dist/THIRD-PARTY-LICENSES.txt"
   ],
   "devDependencies": {
