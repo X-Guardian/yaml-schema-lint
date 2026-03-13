@@ -457,7 +457,11 @@ describe('fetchSchemaStoreSchemas', () => {
 
     expect(xhr).toHaveBeenCalled();
     expect(mkdirSpy).toHaveBeenCalledWith('/tmp/test-cache', { recursive: true });
-    expect(writeSpy).toHaveBeenCalledWith('/tmp/test-cache/schemastore-catalog.json', catalogJson, 'utf-8');
+    expect(writeSpy).toHaveBeenCalledWith(
+      path.join('/tmp/test-cache', 'schemastore-catalog.json'),
+      catalogJson,
+      'utf-8',
+    );
     expect(result.length).toBeGreaterThan(0);
     expect(result[0].uri).toBe('https://json.schemastore.org/gitlab-ci');
 
@@ -474,7 +478,7 @@ describe('fetchSchemaStoreSchemas', () => {
     const result = await fetchSchemaStoreSchemas(cacheOpts);
 
     expect(xhr).not.toHaveBeenCalled();
-    expect(readSpy).toHaveBeenCalledWith('/tmp/test-cache/schemastore-catalog.json', 'utf-8');
+    expect(readSpy).toHaveBeenCalledWith(path.join('/tmp/test-cache', 'schemastore-catalog.json'), 'utf-8');
     expect(result.length).toBeGreaterThan(0);
     expect(result[0].uri).toBe('https://json.schemastore.org/gitlab-ci');
 
