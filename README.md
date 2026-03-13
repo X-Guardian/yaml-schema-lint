@@ -1,19 +1,15 @@
 # yaml-schema-lint
 
 [![npm][npm-badge]][npm-listing]
+[![npm downloads][npm-downloads]][npm-listing]
 
-Lint YAML files against JSON schemas using the [yaml-language-server](https://www.npmjs.com/package/yaml-language-server) programmatic API. Validates syntax and schema compliance, with schemas loaded from `.vscode/settings.json` and [schemastore.org](https://www.schemastore.org/).
+Lint YAML files against JSON schemas using the [yaml-language-server](https://www.npmjs.com/package/yaml-language-server) programmatic API.
+Validates syntax and schema compliance, with schemas loaded from a settings file and [schemastore.org](https://www.schemastore.org/).
 
 ## Installation
 
 ```bash
-npm install -g yaml-schema-lint
-```
-
-Or as a dev dependency:
-
-```bash
-npm install -D yaml-schema-lint
+npm install --global yaml-schema-lint
 ```
 
 ## Usage
@@ -56,7 +52,7 @@ yaml-schema-lint '**/*.yml' --output-file gl-codequality.json
 
 Schemas are resolved from three sources, in order of priority:
 
-1. **`.vscode/settings.json`** -- The `yaml.schemas` property maps schema URIs to file glob patterns. Custom YAML tags can be defined via `yaml.customTags`.
+1. **Settings file** -- The `yaml.schemas` property maps schema URIs to file glob patterns. Custom YAML tags can be defined via `yaml.customTags`.
 
    ```json
    {
@@ -81,14 +77,7 @@ Schemas are resolved from three sources, in order of priority:
 
 By default, human-readable diagnostics are printed to the console with colorized severity and summary:
 
-```
-config.yaml
-  5:3   error    Unexpected property   (yaml-schema)
-  12:7  warning  Missing "stage"       (yaml-schema)
-
-Results: 5 file(s) linted, 1 error(s), 1 warning(s)
-  3 file(s) passed with no issues
-```
+![Example output](docs/output-example.svg)
 
 ### Report files
 
@@ -169,3 +158,4 @@ MIT
 
 [npm-badge]: https://img.shields.io/npm/v/yaml-schema-lint.svg
 [npm-listing]: https://www.npmjs.com/package/yaml-schema-lint
+[npm-downloads]: https://img.shields.io/npm/dm/yaml-schema-lint.svg

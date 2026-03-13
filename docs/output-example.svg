@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="166" viewBox="0 0 600 166">
+  <defs>
+    <style>
+      text {
+        font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace;
+        font-size: 14px;
+        fill: #d4d4d4;
+      }
+      .filename { font-weight: bold; text-decoration: underline; fill: #e8e8e8; }
+      .error { fill: #f44747; }
+      .warning { fill: #e5c07b; }
+      .dim { fill: #808080; }
+    </style>
+  </defs>
+  <rect width="600" height="166" rx="6" fill="#1e1e1e" />
+  <circle cx="20" cy="14" r="5" fill="#ff5f56" />
+  <circle cx="36" cy="14" r="5" fill="#ffbd2e" />
+  <circle cx="52" cy="14" r="5" fill="#27c93f" />
+  <text x="16" y="48" class="filename">config.yaml</text>
+  <text x="16" y="68" xml:space="preserve">  5:3   <tspan class="error">error</tspan>    Unexpected property   <tspan class="dim">(yaml-schema)</tspan></text>
+  <text x="16" y="88" xml:space="preserve">  12:7  <tspan class="warning">warning</tspan>  Missing "stage"       <tspan class="dim">(yaml-schema)</tspan></text>
+  <text x="16" y="120">Results: 5 file(s) linted, 1 error(s), 1 warning(s)</text>
+  <text x="16" y="140" xml:space="preserve">  3 file(s) passed with no issues</text>
+</svg>
