@@ -50,7 +50,7 @@ const ctx = await esbuild.context({
   mainFields: ['module', 'main'],
   outfile: 'dist/yaml-schema-lint.js',
   banner: { js: '#!/usr/bin/env node' },
-  sourcemap: true,
+  sourcemap: 'external',
   minify: true,
   legalComments: 'none',
   logLevel: 'info',
