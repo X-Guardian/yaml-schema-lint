@@ -28,41 +28,54 @@ import {
 import { consoleDebug, consoleError, initConsoleDebug, ManagedError, safeProcessExit } from './utils';
 import { name, description, version } from '../package.json';
 
-const program = new Command()
-  .name(name)
-  .description(description)
-  .version(version)
-  .argument('<patterns...>', 'YAML file paths or glob patterns (e.g. "**/*.yml")')
-  .addOption(
-    new Option(`${CMD_OPTIONS.settingsPath} <path>`, 'Path to settings JSON file with yaml.schemas').default(
-      DEFAULT_SETTINGS_PATH,
-    ),
-  )
-  .addOption(new Option(CMD_OPTIONS.noSchemaStore, 'Disable fetching schemas from schemastore.org'))
-  .addOption(new Option(`${CMD_OPTIONS.cacheDir} <path>`, 'Cache directory').default(DEFAULT_CACHE_DIR))
-  .addOption(
-    new Option(`${CMD_OPTIONS.cacheTtl} <seconds>`, 'Schema store cache TTL in seconds')
-      .argParser((v) => parseInt(v, 10))
-      .default(DEFAULT_CACHE_TTL_SECONDS),
-  )
-  .addOption(
-    new Option(`${CMD_OPTIONS.format} <name>`, 'Output file format').choices(FORMAT_CHOICES).default(FORMAT_CHOICES[0]),
-  )
-  .addOption(new Option(`${CMD_OPTIONS.outputFile} <path>`, 'Write a report file (uses --format)'))
-  .addOption(
-    new Option(`${CMD_OPTIONS.ignore} <patterns...>`, 'Glob patterns to exclude from file matching').default(
-      DEFAULT_IGNORE_PATTERNS,
-    ),
-  )
-  .addOption(new Option(CMD_OPTIONS.noFailOnNoFiles, 'Exit successfully when no files match the patterns'))
-  .addOption(new Option(CMD_OPTIONS.noFailOnWarnings, 'Do not exit with an error when only warnings are found'))
-  .addOption(
-    new Option(`${CMD_OPTIONS.debug} [true|false]`, 'Enable debug logging')
-      .choices(['true', 'false'])
-      .argParser((value) => value === 'true')
-      .default(false),
-  )
-  .action(main);
+/**
+ * Creates and configures the Commander CLI program with all options and the main action handler.
+ * @returns The configured Commander program instance
+ */
+export function createProgram() {
+  return new Command()
+    .name(name)
+    .description(description)
+    .version(version)
+    .argument('<patterns...>', 'YAML file paths or glob patterns (e.g. "**/*.yml")')
+    .addOption(
+      new Option(`${CMD_OPTIONS.settingsPath} <path>`, 'Path to settings JSON file with yaml.schemas').default(
+        DEFAULT_SETTINGS_PATH,
+      ),
+    )
+    .addOption(new Option(CMD_OPTIONS.noSchemaStore, 'Disable fetching schemas from schemastore.org'))
+    .addOption(new Option(`${CMD_OPTIONS.cacheDir} <path>`, 'Cache directory').default(DEFAULT_CACHE_DIR))
+    .addOption(
+      new Option(`${CMD_OPTIONS.cacheTtl} <seconds>`, 'Schema store cache TTL in seconds')
+        .argParser((v) => parseInt(v, 10))
+        .default(DEFAULT_CACHE_TTL_SECONDS),
+    )
+    .addOption(
+      new Option(`${CMD_OPTIONS.format} <name>`, 'Output file format')
+        .choices(FORMAT_CHOICES)
+        .default(FORMAT_CHOICES[0]),
+    )
+    .addOption(new Option(`${CMD_OPTIONS.outputFile} <path>`, 'Write a report file (uses --format)'))
+    .addOption(
+      new Option(`${CMD_OPTIONS.ignore} <patterns>`, 'Comma-separated glob patterns to exclude from file matching')
+        .default(DEFAULT_IGNORE_PATTERNS)
+        .argParser((value) => {
+          const values = value.split(',').map((v) => v.trim());
+          return values;
+        }),
+    )
+    .addOption(new Option(CMD_OPTIONS.noFailOnNoFiles, 'Exit successfully when no files match the patterns'))
+    .addOption(new Option(CMD_OPTIONS.noFailOnWarnings, 'Do not exit with an error when only warnings are found'))
+    .addOption(
+      new Option(`${CMD_OPTIONS.debug} [true|false]`, 'Enable debug logging')
+        .choices(['true', 'false'])
+        .argParser((value) => value === 'true')
+        .default(false),
+    )
+    .action(main);
+}
+
+export const program = createProgram();
 
 interface CmdOptions {
   settingsPath: string;
@@ -157,5 +170,3 @@ export async function main(patterns: string[], options: CmdOptions) {
     safeProcessExit(FAIL_EXIT_CODE);
   }
 }
-
-export { program };
