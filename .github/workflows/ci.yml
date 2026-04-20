@@ -67,6 +67,19 @@ jobs:
       - name: Run tests
         run: pnpm exec jest --config jest.config.cjs --ci --coverage
 
+  yaml-schema-lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: X-Guardian/yaml-schema-lint-action@fix-action
+        with:
+          patterns: "'**/*.yml' '**/*.yaml'"
+
   build:
     name: Build
     runs-on: ubuntu-latest
