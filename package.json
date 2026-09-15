@@ -69,7 +69,7 @@
     "prettier": "^3.8.1",
     "request-light": "^0.8.0",
     "ts-jest": "^29.4.12",
-    "tsx": "^4.21.0",
+    "tsx": "^4.23.13",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.56.1",
     "vscode-languageserver-textdocument": "^1.0.12",
