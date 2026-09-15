@@ -1,0 +1,3 @@
+name: my-service
+port: 'not-a-number'
+extra: nope
