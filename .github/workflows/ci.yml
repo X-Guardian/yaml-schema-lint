@@ -65,7 +65,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Run tests
-        run: pnpm exec jest --config jest.config.cjs --ci --coverage
+        run: pnpm test --ci --coverage
 
   build:
     name: Build
@@ -90,5 +90,5 @@ jobs:
       - name: Bundle
         run: pnpm build
 
-      - name: Verify bundle runs
-        run: node dist/yaml-schema-lint.js --version
+      - name: Smoke test bundle
+        run: pnpm test:smoke --ci

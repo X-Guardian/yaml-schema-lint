@@ -11,11 +11,12 @@
     "cli": "node dist/yaml-schema-lint.js",
     "build": "node esbuild.config.mjs",
     "test": "jest --config jest.config.cjs",
+    "test:smoke": "jest --config jest.smoke.config.cjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write 'src/**/*.ts'",
-    "format:check": "prettier --check 'src/**/*.ts'",
-    "tsc-check": "tsc --noEmit"
+    "format": "prettier --write '{src,test}/**/*.ts'",
+    "format:check": "prettier --check '{src,test}/**/*.ts'",
+    "tsc-check": "tsc --noEmit && tsc --noEmit -p tsconfig.smoke.json"
   },
   "keywords": [
     "yaml",
