@@ -76,7 +76,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: X-Guardian/yaml-schema-lint-action@fix-action
+      - uses: X-Guardian/yaml-schema-lint-action@v1.1.0
         with:
           patterns: "'**/*.yml' '**/*.yaml'"
 
