@@ -34,7 +34,7 @@ yaml-schema-lint [options] <patterns...>
 | `--cache-ttl <seconds>`  | `86400` (24h)             | How long the cached Schema Store catalog is considered fresh.                   |
 | `--format <name>`        | `gitlab-codequality`      | Output file format when `--output-file` is used (`gitlab-codequality`, `json`). |
 | `--output-file <path>`   | _(none)_                  | Write an additional report file in the chosen format.                           |
-| `--ignore <patterns...>` | `**/node_modules/**`      | Glob patterns to exclude from file matching.                                    |
+| `--ignore <patterns>`    | `**/node_modules/**`      | Comma-separated glob patterns to exclude from file matching.                    |
 | `--no-fail-on-warnings`  | _(disabled)_              | Do not exit with an error when only warnings are found.                         |
 | `--no-fail-on-no-files`  | _(disabled)_              | Exit successfully when no files match the patterns.                             |
 | `--debug`                | `false`                   | Enable debug logging.                                                           |
@@ -45,6 +45,7 @@ yaml-schema-lint [options] <patterns...>
 yaml-schema-lint '**/*.yml' '**/*.yaml'
 yaml-schema-lint --settings-path custom/settings.json '**/*.yml'
 yaml-schema-lint --no-schema-store '**/*.yml'
+yaml-schema-lint --ignore 'dist/**,build/**' '**/*.yml'
 yaml-schema-lint '**/*.yml' --output-file gl-codequality.json
 ```
 

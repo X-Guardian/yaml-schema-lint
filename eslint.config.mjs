@@ -20,7 +20,7 @@ export default defineConfig([
       {
         languageOptions: {
           parserOptions: {
-            project: ['tsconfig.json', 'tsconfig.test.json'],
+            project: ['tsconfig.json', 'tsconfig.test.json', 'tsconfig.smoke.json'],
           },
         },
       },
@@ -31,7 +31,7 @@ export default defineConfig([
     extends: [jsdoc.configs['flat/recommended']],
   },
   {
-    files: ['src/**/*.test.ts'],
+    files: ['src/**/*.test.ts', 'test/**/*.test.ts'],
     extends: [jest.configs['flat/recommended']],
   },
   globalIgnores(['dist/', 'node_modules/', 'bin/']),

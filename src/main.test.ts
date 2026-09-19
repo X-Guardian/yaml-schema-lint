@@ -1,7 +1,5 @@
 /** https://nodejs.org/api/fs.html */
 import fs from 'node:fs';
-/** https://www.npmjs.com/package/@commander-js/extra-typings */
-import { Command, Option } from '@commander-js/extra-typings';
 /** https://www.npmjs.com/package/yaml-language-server */
 import { DiagnosticSeverity, type LanguageService } from 'yaml-language-server';
 import * as yamlLint from './yaml-lint';
@@ -13,11 +11,10 @@ import {
   DEFAULT_CACHE_TTL_SECONDS,
   DEFAULT_IGNORE_PATTERNS,
   DEFAULT_SETTINGS_PATH,
-  FORMAT_CHOICES,
 } from './constants';
 import { createCommandOptions } from './test-utils';
 import type { LintFileResult } from './yaml-lint';
-import { main } from './main';
+import { createProgram } from './main';
 
 jest.mock('./main', () => {
   return { ...jest.requireActual<object>('./main') };
@@ -41,56 +38,19 @@ const mockLanguageService = {
 } as unknown as LanguageService;
 
 /**
- * Build a Command instance that routes to the exported `main` function.
- * This mirrors the CLI structure without triggering `program.parseAsync()`.
- * @returns A configured Command instance
+ * Builds a Commander command instance with the program and configuration.
+ * @returns The configured Commander command instance
  */
-function buildCommand(): Command {
-  const cmd = new Command();
+function buildCommand() {
+  const cmd = createProgram();
   cmd.exitOverride();
   cmd.configureOutput({ outputError: (str: string) => str });
-
-  cmd
-    .argument('<patterns...>', 'YAML file paths or glob patterns')
-    .addOption(
-      new Option(`${CMD_OPTIONS.settingsPath} <path>`, 'Path to settings JSON file with yaml.schemas').default(
-        DEFAULT_SETTINGS_PATH,
-      ),
-    )
-    .addOption(new Option(CMD_OPTIONS.noSchemaStore, 'Disable fetching schemas from schemastore.org'))
-    .addOption(new Option(`${CMD_OPTIONS.cacheDir} <path>`, 'Cache directory').default(DEFAULT_CACHE_DIR))
-    .addOption(
-      new Option(`${CMD_OPTIONS.cacheTtl} <seconds>`, 'Schema store cache TTL in seconds')
-        .argParser((v: string) => parseInt(v, 10))
-        .default(DEFAULT_CACHE_TTL_SECONDS),
-    )
-    .addOption(
-      new Option(`${CMD_OPTIONS.format} <name>`, 'Output file format')
-        .choices(FORMAT_CHOICES)
-        .default(FORMAT_CHOICES[0]),
-    )
-    .addOption(new Option(`${CMD_OPTIONS.outputFile} <path>`, 'Write a report file (uses --format)'))
-    .addOption(
-      new Option(`${CMD_OPTIONS.ignore} <patterns...>`, 'Glob patterns to exclude from file matching').default(
-        DEFAULT_IGNORE_PATTERNS,
-      ),
-    )
-    .addOption(new Option(CMD_OPTIONS.noFailOnNoFiles, 'Exit successfully when no files match the patterns'))
-    .addOption(new Option(CMD_OPTIONS.noFailOnWarnings, 'Do not exit with an error when only warnings are found'))
-    .addOption(
-      new Option(`${CMD_OPTIONS.debug} [true|false]`, 'Enable debug logging')
-        .choices(['true', 'false'])
-        .argParser((value: string) => value === 'true')
-        .default(false),
-    )
-    .action(main);
-
   return cmd;
 }
 
 const baseOptionsBuilder = createCommandOptions('').addOption(CMD_OPTIONS.debug, 'false');
 
-let command: Command;
+let command: ReturnType<typeof buildCommand>;
 
 beforeEach(() => {
   jest.resetAllMocks();
@@ -362,5 +322,31 @@ describe('yaml-schema-lint command', () => {
     await command.parseAsync(args, { from: 'user' });
 
     expect(fetchSchemaStoreSchemasSpy).toHaveBeenCalledWith(expect.objectContaining({ cacheTtlSeconds: 7200 }));
+  });
+
+  it('accepts patterns before options', async () => {
+    await command.parseAsync(['file.yml', '--debug', 'true'], { from: 'user' });
+
+    expect(resolveFileGlobsSpy).toHaveBeenCalledWith(['file.yml'], DEFAULT_IGNORE_PATTERNS);
+    expect(initConsoleDebugSpy).toHaveBeenCalledWith(true);
+  });
+
+  it('accepts patterns after options', async () => {
+    await command.parseAsync(['--debug', 'true', 'file.yml'], { from: 'user' });
+
+    expect(resolveFileGlobsSpy).toHaveBeenCalledWith(['file.yml'], DEFAULT_IGNORE_PATTERNS);
+    expect(initConsoleDebugSpy).toHaveBeenCalledWith(true);
+  });
+
+  it('accepts patterns around --ignore', async () => {
+    await command.parseAsync(['--ignore', 'node_modules', 'file.yml'], { from: 'user' });
+
+    expect(resolveFileGlobsSpy).toHaveBeenCalledWith(['file.yml'], ['node_modules']);
+  });
+
+  it('splits comma-separated --ignore patterns', async () => {
+    await command.parseAsync(['--ignore', 'test.yml,fred.yml', 'file.yml'], { from: 'user' });
+
+    expect(resolveFileGlobsSpy).toHaveBeenCalledWith(['file.yml'], ['test.yml', 'fred.yml']);
   });
 });

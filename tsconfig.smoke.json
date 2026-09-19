@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Type-check only; these tests live outside the src/ rootDir used for the build.
+    "rootDir": ".",
+    "noEmit": true
+  },
+  "include": ["test/smoke/**/*.ts"],
+  "exclude": []
+}

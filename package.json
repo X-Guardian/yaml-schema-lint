@@ -1,6 +1,6 @@
 {
   "name": "yaml-schema-lint",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "commonjs",
   "description": "Lint YAML files against JSON schemas using the yaml-language-server",
   "bin": {
@@ -11,11 +11,12 @@
     "cli": "node dist/yaml-schema-lint.js",
     "build": "node esbuild.config.mjs",
     "test": "jest --config jest.config.cjs",
+    "test:smoke": "jest --config jest.smoke.config.cjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write 'src/**/*.ts'",
-    "format:check": "prettier --check 'src/**/*.ts'",
-    "tsc-check": "tsc --noEmit"
+    "format": "prettier --write '{src,test}/**/*.ts'",
+    "format:check": "prettier --check '{src,test}/**/*.ts'",
+    "tsc-check": "tsc --noEmit && tsc --noEmit -p tsconfig.smoke.json"
   },
   "keywords": [
     "yaml",
@@ -56,23 +57,23 @@
     "@typescript-eslint/parser": "^8.56.1",
     "colorette": "^2.0.20",
     "commander": "^14.0.1",
-    "esbuild": "^0.27.3",
+    "esbuild": "^0.28.1",
     "esbuild-plugin-license": "^1.2.3",
     "eslint": "^10.0.2",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-jest": "^29.15.0",
+    "eslint-plugin-jest": "^29.16.6",
     "eslint-plugin-jsdoc": "^62.7.1",
     "eslint-plugin-prettier": "^5.5.5",
     "fast-glob": "^3.3.3",
     "globals": "^17.4.0",
-    "jest": "^30.0.0",
+    "jest": "^30.5.1",
     "prettier": "^3.8.1",
     "request-light": "^0.8.0",
-    "ts-jest": "^29.4.0",
-    "tsx": "^4.21.0",
+    "ts-jest": "^29.4.12",
+    "tsx": "^4.23.13",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.56.1",
     "vscode-languageserver-textdocument": "^1.0.12",
-    "yaml-language-server": "^1.21.0"
+    "yaml-language-server": "^1.24.0"
   }
 }
