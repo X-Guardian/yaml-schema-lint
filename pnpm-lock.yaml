@@ -84,8 +84,8 @@ importers:
         specifier: ^1.0.12
         version: 1.0.12
       yaml-language-server:
-        specifier: ^1.24.0
-        version: 1.24.0
+        specifier: 1.25.1-9eb9044.0
+        version: 1.25.1-9eb9044.0
 
 packages:
 
@@ -2318,8 +2318,8 @@ packages:
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
 
-  yaml-language-server@1.24.0:
-    resolution: {integrity: sha512-+HGcwu4M7IC+UDhDZScTZR8qsl2MMj/X1E5e83QcWzWn2pctj0fv8HHdrHHcbc1KB3CuRPJ4gc1Nm36D0iCu0g==}
+  yaml-language-server@1.25.1-9eb9044.0:
+    resolution: {integrity: sha512-2ILItCYP/YPeFOv14OmQD3nglrOSXB4AxVql7cCxaL4YRXgIQ8Ml2WTzBYV7qsBACTMZT33s0y9sa4oJUBeZPA==}
     hasBin: true
 
   yaml@2.8.3:
@@ -4752,7 +4752,7 @@ snapshots:
 
   yallist@3.1.1: {}
 
-  yaml-language-server@1.24.0:
+  yaml-language-server@1.25.1-9eb9044.0:
     dependencies:
       '@vscode/l10n': 0.0.18
       ajv: 8.20.0

@@ -5,9 +5,12 @@ import path from 'node:path';
 /** https://nodejs.org/api/url.html */
 import { pathToFileURL } from 'node:url';
 /** https://www.npmjs.com/package/yaml-language-server */
-import { DiagnosticSeverity } from 'yaml-language-server';
+import { DiagnosticSeverity, SchemaPriority } from 'yaml-language-server';
+/** https://www.npmjs.com/package/request-light */
+import type { XHRResponse } from 'request-light';
 
 import fg from 'fast-glob';
+import { ManagedError } from './utils';
 import {
   loadSchemaSettings,
   toFileUri,
@@ -16,6 +19,7 @@ import {
   formatDiagnostics,
   fetchSchemaStoreSchemas,
   createLanguageService,
+  isSchemaResolveError,
   lintFiles,
   type LintFileResult,
   type SchemaStoreCacheOptions,
@@ -537,6 +541,60 @@ describe('fetchSchemaStoreSchemas', () => {
 
     statSpy.mockRestore();
   });
+
+  it('retries a transient catalog failure', async () => {
+    const statSpy = jest.spyOn(fs, 'statSync').mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
+    const mkdirSpy = jest.spyOn(fs, 'mkdirSync').mockReturnValue(undefined);
+    const writeSpy = jest.spyOn(fs, 'writeFileSync').mockImplementation();
+    const sleep = jest.fn(() => Promise.resolve());
+    xhr
+      .mockRejectedValueOnce({ status: 503, headers: { date: 'now' }, responseText: '', body: new Uint8Array() })
+      .mockResolvedValueOnce({ responseText: catalogJson });
+
+    const result = await fetchSchemaStoreSchemas(cacheOpts, { sleep });
+
+    expect(xhr).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(writeSpy).toHaveBeenCalled();
+    expect(result[0].uri).toBe('https://json.schemastore.org/gitlab-ci');
+
+    statSpy.mockRestore();
+    mkdirSpy.mockRestore();
+    writeSpy.mockRestore();
+  });
+
+  it('throws a ManagedError with the reason when the catalog cannot be fetched', async () => {
+    const statSpy = jest.spyOn(fs, 'statSync').mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
+    const writeSpy = jest.spyOn(fs, 'writeFileSync').mockImplementation();
+    const sleep = jest.fn(() => Promise.resolve());
+    const connectionFailure: XHRResponse = {
+      status: 404,
+      headers: {},
+      responseText:
+        'Unable to connect to https://www.schemastore.org/api/json/catalog.json through a proxy. Error: connect ECONNREFUSED 127.0.0.1:1',
+      body: new Uint8Array(),
+    };
+    xhr.mockRejectedValue(connectionFailure);
+
+    const promise = fetchSchemaStoreSchemas(cacheOpts, { sleep });
+
+    await expect(promise).rejects.toBeInstanceOf(ManagedError);
+    await expect(promise).rejects.toThrow(
+      'Failed to fetch the Schema Store catalog from https://www.schemastore.org/api/json/catalog.json: ' +
+        'Unable to connect to https://www.schemastore.org/api/json/catalog.json through a proxy. ' +
+        'Error: connect ECONNREFUSED 127.0.0.1:1. Use --no-schema-store to skip it.',
+    );
+    expect(xhr).toHaveBeenCalledTimes(4);
+    expect(writeSpy).not.toHaveBeenCalled();
+
+    statSpy.mockRestore();
+    writeSpy.mockRestore();
+    xhr.mockReset();
+  });
 });
 
 describe('createLanguageService', () => {
@@ -578,5 +636,121 @@ describe('lintFiles', () => {
 
     expect(results).toHaveLength(1);
     expect(results[0].diagnostics).toHaveLength(0);
+  });
+});
+
+describe('isSchemaResolveError', () => {
+  const range = { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } };
+
+  it('is true for codes in the schema resolution range', () => {
+    expect(isSchemaResolveError({ range, message: 'load', code: 0x10000 })).toBe(true);
+    expect(isSchemaResolveError({ range, message: 'load', code: 0x10000 + 503 })).toBe(true);
+  });
+
+  it('is false for validation codes, string codes and missing codes', () => {
+    expect(isSchemaResolveError({ range, message: 'not allowed', code: 513 })).toBe(false);
+    expect(isSchemaResolveError({ range, message: 'custom', code: 'E123' })).toBe(false);
+    expect(isSchemaResolveError({ range, message: 'syntax' })).toBe(false);
+  });
+});
+
+describe('createLanguageService schema fetch retries', () => {
+  const { xhr } = jest.requireMock<{ xhr: jest.Mock }>('request-light');
+
+  const schemaUri = 'https://example.com/schema.json';
+  const schemas = [{ uri: schemaUri, fileMatch: ['*.yaml'], priority: SchemaPriority.Settings }];
+  const schemaResponse: XHRResponse = {
+    status: 200,
+    headers: { date: 'now' },
+    responseText: JSON.stringify({
+      type: 'object',
+      properties: { name: { type: 'string' } },
+      additionalProperties: false,
+    }),
+    body: new Uint8Array(),
+  };
+
+  /**
+   * Build the plain object request-light rejects with for an HTTP error response from a server.
+   * @param status The HTTP status
+   * @returns A rejection value shaped like request-light's XHRResponse
+   */
+  function httpFailure(status: number): XHRResponse {
+    return { status, headers: { date: 'now' }, responseText: '', body: new Uint8Array() };
+  }
+
+  let sleep: jest.Mock<Promise<void>, []>;
+
+  // The yaml-language-server caches parsed documents by URI and version, and lintFiles always creates version 0,
+  // so every test here lints a distinct path to avoid picking up another test's parsed content.
+  beforeEach(() => {
+    xhr.mockReset();
+    sleep = jest.fn(() => Promise.resolve());
+    jest.spyOn(fs, 'readFileSync').mockReturnValue('name: test\n');
+  });
+
+  it('recovers from a transient 503 and validates the file', async () => {
+    xhr.mockRejectedValueOnce(httpFailure(503)).mockResolvedValueOnce(schemaResponse);
+
+    const service = createLanguageService(schemas, [], { sleep });
+    const results = await lintFiles(service, ['/tmp/retry-recovers.yaml']);
+
+    expect(results[0].diagnostics).toEqual([]);
+    expect(xhr).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledTimes(1);
+  });
+
+  it('validates against the schema fetched after a retry', async () => {
+    jest.spyOn(fs, 'readFileSync').mockReturnValue('name: test\nextra: 1\n');
+    xhr.mockRejectedValueOnce(httpFailure(503)).mockResolvedValueOnce(schemaResponse);
+
+    const service = createLanguageService(schemas, [], { sleep });
+    const results = await lintFiles(service, ['/tmp/retry-violation.yaml']);
+
+    expect(results[0].diagnostics.map((d) => d.message)).toEqual(['Property extra is not allowed.']);
+    // A genuine violation keeps the severity the language server gave it.
+    expect(results[0].diagnostics[0].severity).toBe(DiagnosticSeverity.Warning);
+  });
+
+  it('reports the reason when the retry budget is exhausted', async () => {
+    xhr.mockRejectedValue(httpFailure(503));
+
+    const service = createLanguageService(schemas, [], { sleep });
+    const results = await lintFiles(service, ['/tmp/retry-exhausted.yaml']);
+
+    expect(results[0].diagnostics.map((d) => d.message)).toEqual([
+      `Unable to load schema from '${schemaUri}': HTTP 503 Service Unavailable.`,
+    ]);
+    // The language server reports this as a warning; the file was not checked, so it is promoted to an error.
+    expect(results[0].diagnostics[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(xhr).toHaveBeenCalledTimes(4);
+    expect(sleep).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not retry a permanent 404', async () => {
+    xhr.mockRejectedValue(httpFailure(404));
+
+    const service = createLanguageService(schemas, [], { sleep });
+    const results = await lintFiles(service, ['/tmp/retry-not-found.yaml']);
+
+    expect(results[0].diagnostics.map((d) => d.message)).toEqual([
+      `Unable to load schema from '${schemaUri}': HTTP 404 Not Found.`,
+    ]);
+    expect(results[0].diagnostics[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(xhr).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('reuses a failed schema load for later files instead of requesting again', async () => {
+    xhr.mockRejectedValue(httpFailure(503));
+
+    const service = createLanguageService(schemas, [], { sleep });
+    const results = await lintFiles(service, ['/tmp/retry-cached-a.yaml', '/tmp/retry-cached-b.yaml']);
+
+    expect(results).toHaveLength(2);
+    expect(results[0].diagnostics).toHaveLength(1);
+    expect(results[1].diagnostics).toHaveLength(1);
+    // The language service caches the failed load, so the retry budget is spent once, inside the request service.
+    expect(xhr).toHaveBeenCalledTimes(4);
   });
 });
