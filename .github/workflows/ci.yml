@@ -48,7 +48,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        node-version: [20, 22, 24]
+        node-version: [22, 24, 26]
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -66,6 +66,19 @@ jobs:
 
       - name: Run tests
         run: pnpm test --ci --coverage
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+    permissions:
+      contents: read
+    steps:
+      - name: Check matrix result
+        run: |
+          echo "Test matrix result: ${{ needs.test.result }}"
+          test "${{ needs.test.result }}" = "success"
 
   build:
     name: Build
