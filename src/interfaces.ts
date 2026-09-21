@@ -25,6 +25,18 @@ export interface SchemaStoreCacheOptions {
   cacheTtlSeconds: number;
 }
 
+/** Retry behaviour for http(s) schema and catalog fetches. */
+export interface SchemaFetchRetryOptions {
+  /** Additional attempts made after the first request fails. Zero disables retrying. */
+  maxRetries: number;
+  /** Base delay for exponential backoff, in milliseconds. */
+  baseDelayMs: number;
+  /** Upper bound for a single delay, in milliseconds. Applies to backoff and to a server's `Retry-After`. */
+  maxDelayMs: number;
+  /** Waits for the given number of milliseconds. Injectable so tests do not sleep. */
+  sleep: (ms: number) => Promise<void>;
+}
+
 /** A formatter that converts lint results to a string suitable for writing to a file. */
 export interface OutputFormatter {
   /** @param results The lint results to format */

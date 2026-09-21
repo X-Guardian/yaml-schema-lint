@@ -1,6 +1,6 @@
 {
   "name": "yaml-schema-lint",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "type": "commonjs",
   "description": "Lint YAML files against JSON schemas using the yaml-language-server",
   "bin": {
@@ -42,7 +42,7 @@
   },
   "packageManager": "pnpm@10.30.3+sha512.c961d1e0a2d8e354ecaa5166b822516668b7f44cb5bd95122d590dd81922f606f5473b6d23ec4a5be05e7fcd18e8488d47d978bbe981872f1145d06e9a740017",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "files": [
     "dist/yaml-schema-lint.js",
@@ -74,6 +74,6 @@
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.56.1",
     "vscode-languageserver-textdocument": "^1.0.12",
-    "yaml-language-server": "^1.24.0"
+    "yaml-language-server": "1.25.1-9eb9044.0"
   }
 }

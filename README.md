@@ -64,7 +64,7 @@ Schemas are resolved from three sources, in order of priority:
    }
    ```
 
-2. **Schema Store** -- YAML-relevant schemas are automatically fetched from [schemastore.org](https://www.schemastore.org/) and matched against file names. The catalog is cached locally (default: `.cache/yaml-schema-lint/schemastore-catalog.json`) with a configurable TTL. Disable with `--no-schema-store`.
+2. **Schema Store** -- YAML-relevant schemas are automatically fetched from [schemastore.org](https://www.schemastore.org/) and matched against file names. The catalog is cached locally (default: `.cache/yaml-schema-lint/schemastore-catalog.json`) with a configurable TTL. Disable with `--no-schema-store`. If the catalog cannot be fetched even after the retries described below, the run exits with code 1 and a readable error.
 
 3. **Modeline comments** -- Inline schema declarations in YAML files are supported natively by the language server:
 
@@ -73,6 +73,12 @@ Schemas are resolved from three sources, in order of priority:
    name: CI
    on: push
    ```
+
+### Network retries
+
+Fetching a remote schema or the Schema Store catalog is retried up to 3 times when the failure looks temporary: an HTTP `429`, `502`, `503` or `504`, or a connection-level failure such as a refused, reset or unresolved connection. A server-supplied `Retry-After` header is honoured; otherwise the delay grows exponentially with jitter from 0.5 s, capped at 5 s per attempt. Other responses such as `404` or `403` are not retried.
+
+If a schema still cannot be loaded, the affected files receive an error of the form `Unable to load schema from '<uri>': <reason>.`. Run with `--debug` to see each attempt and the reason it failed.
 
 ## Output
 
