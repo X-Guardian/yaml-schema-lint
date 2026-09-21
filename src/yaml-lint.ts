@@ -13,20 +13,36 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 /** https://www.npmjs.com/package/yaml-language-server */
 import {
   getLanguageService,
+  type Diagnostic,
   type LanguageService,
   type LanguageSettings,
   type SchemasSettings,
   SchemaPriority,
   DiagnosticSeverity,
 } from 'yaml-language-server';
-/** https://www.npmjs.com/package/request-light */
-import { xhr, getErrorStatusDescription, type XHRResponse } from 'request-light';
 
-import { CACHE_FILENAME, SCHEMA_STORE_CATALOG_URL, YAML_FILE_EXTENSIONS } from './constants';
-import type { LintFileResult, SchemaStoreCacheOptions, VscodeYamlSettings } from './interfaces';
-import { consoleDebug } from './utils';
+import {
+  CACHE_FILENAME,
+  CMD_OPTIONS,
+  SCHEMA_RESOLVE_ERROR_CODE,
+  SCHEMA_STORE_CATALOG_URL,
+  YAML_FILE_EXTENSIONS,
+} from './constants';
+import type {
+  LintFileResult,
+  SchemaFetchRetryOptions,
+  SchemaStoreCacheOptions,
+  VscodeYamlSettings,
+} from './interfaces';
+import { describeXhrError, xhrWithRetry } from './schema-request';
+import { consoleDebug, ManagedError } from './utils';
 
-export type { LintFileResult, SchemaStoreCacheOptions, VscodeYamlSettings } from './interfaces';
+export type {
+  LintFileResult,
+  SchemaFetchRetryOptions,
+  SchemaStoreCacheOptions,
+  VscodeYamlSettings,
+} from './interfaces';
 
 /**
  * Parse a URI string and return its scheme in lowercase.
@@ -46,38 +62,38 @@ function getUriScheme(uri: string): string {
 }
 
 /**
- * Schema request handler that fetches schema content from file:// or http(s):// URIs.
- * @param uri The schema URI to fetch
- * @returns The schema content as a string
+ * Create a schema request handler that fetches schema content from file:// or http(s):// URIs.
+ *
+ * Retries happen here rather than around validation: the yaml-language-server caches the outcome of each schema
+ * load for the lifetime of the LanguageService, so a request that fails once would otherwise fail every file
+ * matched to that schema for the whole run.
+ * @param retryOptions Overrides for the http(s) retry behaviour, used by tests
+ * @returns A function that resolves a schema URI to its content
  */
-async function schemaRequestService(uri: string): Promise<string> {
-  if (!uri) {
-    return Promise.reject(new Error('No schema specified'));
-  }
+export function createSchemaRequestService(
+  retryOptions?: Partial<SchemaFetchRetryOptions>,
+): (uri: string) => Promise<string> {
+  return async (uri: string): Promise<string> => {
+    if (!uri) {
+      return Promise.reject(new Error('No schema specified'));
+    }
 
-  const scheme = getUriScheme(uri);
+    const scheme = getUriScheme(uri);
 
-  if (scheme === 'file') {
-    const fsPath = /^[a-z]:[\\/]/i.test(uri) ? uri : fileURLToPath(uri);
-    return fs.promises.readFile(fsPath, 'utf-8').catch(() => '');
-  }
+    if (scheme === 'file') {
+      const fsPath = /^[a-z]:[\\/]/i.test(uri) ? uri : fileURLToPath(uri);
+      return fs.promises.readFile(fsPath, 'utf-8').catch(() => '');
+    }
 
-  if (scheme === 'http' || scheme === 'https') {
-    const headers = { 'Accept-Encoding': 'gzip, deflate' };
-    return xhr({ url: uri, followRedirects: 5, headers }).then(
-      (response) => response.responseText,
-      (error: unknown) => {
-        const xhrError = error as XHRResponse;
-        return Promise.reject(
-          new Error(
-            xhrError.responseText || getErrorStatusDescription(xhrError.status) || 'Unknown schema fetch error',
-          ),
-        );
-      },
-    );
-  }
+    if (scheme === 'http' || scheme === 'https') {
+      return xhrWithRetry(uri, retryOptions).then(
+        (response) => response.responseText,
+        (error: unknown) => Promise.reject(new Error(describeXhrError(error))),
+      );
+    }
 
-  return Promise.reject(new Error(`Unsupported schema URI scheme: ${scheme}`));
+    return Promise.reject(new Error(`Unsupported schema URI scheme: ${scheme}`));
+  };
 }
 
 /** A workspace context for the yaml-language-server. */
@@ -101,12 +117,21 @@ interface SchemaStoreCatalog {
 
 /**
  * Fetch the raw Schema Store catalog from the network.
+ * @param retryOptions Overrides for the http(s) retry behaviour, used by tests
  * @returns The parsed catalog object
+ * @throws {ManagedError} When the catalog cannot be fetched after retries
  */
-async function fetchCatalogFromNetwork(): Promise<SchemaStoreCatalog> {
-  const headers = { 'Accept-Encoding': 'gzip, deflate' };
-  const response = await xhr({ url: SCHEMA_STORE_CATALOG_URL, followRedirects: 5, headers });
-  return JSON.parse(response.responseText) as SchemaStoreCatalog;
+async function fetchCatalogFromNetwork(retryOptions?: Partial<SchemaFetchRetryOptions>): Promise<SchemaStoreCatalog> {
+  let responseText: string;
+  try {
+    ({ responseText } = await xhrWithRetry(SCHEMA_STORE_CATALOG_URL, retryOptions));
+  } catch (error: unknown) {
+    throw new ManagedError(
+      `Failed to fetch the Schema Store catalog from ${SCHEMA_STORE_CATALOG_URL}: ${describeXhrError(error)}. ` +
+        `Use ${CMD_OPTIONS.noSchemaStore} to skip it.`,
+    );
+  }
+  return JSON.parse(responseText) as SchemaStoreCatalog;
 }
 
 /**
@@ -163,9 +188,13 @@ function extractYamlSchemas(catalog: SchemaStoreCatalog): SchemasSettings[] {
  * from disk. Otherwise it is fetched from the network and written to the
  * cache directory.
  * @param options Cache directory and TTL configuration
+ * @param retryOptions Overrides for the http(s) retry behaviour, used by tests
  * @returns Schema associations from the Schema Store
  */
-export async function fetchSchemaStoreSchemas(options: SchemaStoreCacheOptions): Promise<SchemasSettings[]> {
+export async function fetchSchemaStoreSchemas(
+  options: SchemaStoreCacheOptions,
+  retryOptions?: Partial<SchemaFetchRetryOptions>,
+): Promise<SchemasSettings[]> {
   const cachePath = path.join(options.cacheDir, CACHE_FILENAME);
   const ttlMs = options.cacheTtlSeconds * 1000;
 
@@ -176,7 +205,7 @@ export async function fetchSchemaStoreSchemas(options: SchemaStoreCacheOptions):
     return extractYamlSchemas(catalog);
   }
 
-  const catalog = await fetchCatalogFromNetwork();
+  const catalog = await fetchCatalogFromNetwork(retryOptions);
 
   fs.mkdirSync(options.cacheDir, { recursive: true });
   fs.writeFileSync(cachePath, JSON.stringify(catalog), 'utf-8');
@@ -189,11 +218,16 @@ export async function fetchSchemaStoreSchemas(options: SchemaStoreCacheOptions):
  * Create and configure a yaml-language-server LanguageService instance.
  * @param schemas Schema associations to configure
  * @param customTags Custom YAML tags to register
+ * @param retryOptions Overrides for the http(s) schema fetch retry behaviour, used by tests
  * @returns A configured LanguageService
  */
-export function createLanguageService(schemas: SchemasSettings[], customTags: string[]): LanguageService {
+export function createLanguageService(
+  schemas: SchemasSettings[],
+  customTags: string[],
+  retryOptions?: Partial<SchemaFetchRetryOptions>,
+): LanguageService {
   const languageService = getLanguageService({
-    schemaRequestService,
+    schemaRequestService: createSchemaRequestService(retryOptions),
     workspaceContext,
   });
 
@@ -300,11 +334,25 @@ export async function lintFiles(languageService: LanguageService, filePaths: str
     const textDocument = TextDocument.create(uri, 'yaml', 0, content);
 
     consoleDebug(`Validating: ${filePath}`);
-    const diagnostics = await languageService.doValidation(textDocument, false);
+    const rawDiagnostics = await languageService.doValidation(textDocument, false);
+    const diagnostics = rawDiagnostics.map((diagnostic) =>
+      isSchemaResolveError(diagnostic) ? { ...diagnostic, severity: DiagnosticSeverity.Error } : diagnostic,
+    );
     results.push({ filePath, diagnostics });
   }
 
   return results;
+}
+
+/**
+ * Check whether a diagnostic reports that a schema could not be loaded or resolved, as opposed to a validation
+ * result against a schema that did load. Mirrors the yaml-language-server's `isSchemaResolveError`, which is not
+ * part of its public API.
+ * @param diagnostic The diagnostic to inspect
+ * @returns True for schema resolution failures
+ */
+export function isSchemaResolveError(diagnostic: Diagnostic): boolean {
+  return typeof diagnostic.code === 'number' && diagnostic.code >= SCHEMA_RESOLVE_ERROR_CODE;
 }
 
 /**

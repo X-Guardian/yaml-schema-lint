@@ -31,6 +31,28 @@ export const DEFAULT_IGNORE_PATTERNS = ['**/node_modules/**'];
 /** URL of the Schema Store JSON catalog. */
 export const SCHEMA_STORE_CATALOG_URL = 'https://www.schemastore.org/api/json/catalog.json';
 
+/** HTTP request headers sent with every schema and catalog fetch. */
+export const SCHEMA_FETCH_HEADERS = { 'Accept-Encoding': 'gzip, deflate' };
+
+/** HTTP statuses that indicate a temporary condition, where the same request may succeed shortly afterwards. */
+export const RETRYABLE_HTTP_STATUSES = [429, 502, 503, 504];
+
+/** Additional attempts made after the first schema or catalog fetch fails. */
+export const SCHEMA_FETCH_MAX_RETRIES = 3;
+
+/** Base delay for exponential backoff between fetch attempts, in milliseconds. */
+export const SCHEMA_FETCH_BASE_DELAY_MS = 500;
+
+/** Upper bound for a single delay between fetch attempts, in milliseconds. Also caps a server's `Retry-After`. */
+export const SCHEMA_FETCH_MAX_DELAY_MS = 5000;
+
+/**
+ * Lowest diagnostic code the yaml-language-server uses for schema resolution failures (its
+ * `ErrorCode.SchemaResolveError`), such as a schema that could not be fetched or a `$ref` that could not be
+ * resolved. Codes at or above this value mean the file was not checked, rather than that it failed a check.
+ */
+export const SCHEMA_RESOLVE_ERROR_CODE = 0x10000;
+
 /** File extensions recognised as YAML when matching schemas to files. */
 export const YAML_FILE_EXTENSIONS = ['.yml', '.yaml'];
 
