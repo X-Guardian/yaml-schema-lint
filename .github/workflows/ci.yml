@@ -80,6 +80,19 @@ jobs:
           echo "Test matrix result: ${{ needs.test.result }}"
           test "${{ needs.test.result }}" = "success"
 
+  yaml-schema-lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: X-Guardian/yaml-schema-lint-action@v2.0.0
+        with:
+          patterns: "'**/*.yml' '**/*.yaml'"
+
   build:
     name: Build
     runs-on: ubuntu-latest
