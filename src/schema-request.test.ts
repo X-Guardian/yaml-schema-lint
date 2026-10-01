@@ -1,9 +1,10 @@
 /** https://www.npmjs.com/package/request-light */
 import type { XHRResponse } from 'request-light';
 
-import { SCHEMA_FETCH_MAX_DELAY_MS, SCHEMA_FETCH_MAX_RETRIES } from './constants';
+import { SCHEMA_FETCH_MAX_RETRIES } from './constants';
 import {
   DEFAULT_SCHEMA_FETCH_RETRY_OPTIONS,
+  SchemaFetchError,
   computeBackoffMs,
   describeXhrError,
   isConnectionFailure,
@@ -102,11 +103,11 @@ describe('isConnectionFailure', () => {
 });
 
 describe('isRetryableXhrError', () => {
-  it.each([429, 502, 503, 504])('retries HTTP %i', (status) => {
+  it.each([429, 500, 502, 503, 504])('retries HTTP %i', (status) => {
     expect(isRetryableXhrError(httpFailure(status))).toBe(true);
   });
 
-  it.each([400, 401, 403, 404, 500])('does not retry HTTP %i from a server', (status) => {
+  it.each([400, 401, 403, 404, 501])('does not retry HTTP %i from a server', (status) => {
     expect(isRetryableXhrError(httpFailure(status))).toBe(false);
   });
 
@@ -236,14 +237,78 @@ describe('xhrWithRetry', () => {
     expect(delays).toEqual([2000]);
   });
 
-  it('caps an excessive Retry-After at the maximum delay', async () => {
+  it('honours a long Retry-After that fits in the wait budget, beyond the backoff cap', async () => {
     xhr
-      .mockRejectedValueOnce(httpFailure(429, { ...REAL_HEADERS, 'retry-after': '3600' }))
+      .mockRejectedValueOnce(httpFailure(503, { ...REAL_HEADERS, 'retry-after': '45' }))
       .mockResolvedValueOnce(success);
 
     await xhrWithRetry(URL, { sleep });
 
-    expect(delays).toEqual([SCHEMA_FETCH_MAX_DELAY_MS]);
+    expect(delays).toEqual([45_000]);
+  });
+
+  it('gives up at once when Retry-After exceeds the remaining wait budget', async () => {
+    const failure = httpFailure(429, { ...REAL_HEADERS, 'retry-after': '3600' });
+    xhr.mockRejectedValue(failure);
+
+    const promise = xhrWithRetry(URL, { sleep });
+
+    await expect(promise).rejects.toThrow(
+      'HTTP 429 Too Many Requests (server asked to retry in 3600s, beyond the retry wait limit)',
+    );
+    await expect(promise).rejects.toHaveProperty('cause', failure);
+    expect(xhr).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('counts earlier waits against the budget when judging a later Retry-After', async () => {
+    xhr
+      .mockRejectedValueOnce(httpFailure(503, { ...REAL_HEADERS, 'retry-after': '40' }))
+      .mockRejectedValueOnce(httpFailure(503, { ...REAL_HEADERS, 'retry-after': '30' }));
+
+    await expect(xhrWithRetry(URL, { sleep })).rejects.toThrow(
+      'HTTP 503 Service Unavailable (after 2 attempts; server asked to retry in 30s, beyond the retry wait limit)',
+    );
+
+    expect(delays).toEqual([40_000]);
+  });
+
+  it('backs off on the slow schedule after a rate-limited response', async () => {
+    xhr.mockRejectedValue(httpFailure(429));
+
+    await expect(xhrWithRetry(URL, { sleep })).rejects.toThrow('HTTP 429 Too Many Requests (after 5 attempts)');
+
+    // 7.5s, 15s and 22.5s leave 15s of the 60s budget, so the fourth 22.5s wait is trimmed to fit.
+    expect(delays).toEqual([7500, 15_000, 22_500, 15_000]);
+  });
+
+  it('spends at most the default wait budget on a persistent rate limit', async () => {
+    jest.spyOn(Math, 'random').mockReturnValue(1);
+    xhr.mockRejectedValue(httpFailure(429));
+
+    await expect(xhrWithRetry(URL, { sleep })).rejects.toBeInstanceOf(SchemaFetchError);
+
+    // The worst-case jitter uses the whole 60s budget: 10s, 20s, then the 30s per-wait cap.
+    expect(delays).toEqual([10_000, 20_000, 30_000]);
+  });
+
+  it('trims backoff to the remaining wait budget and stops once it is spent', async () => {
+    jest.spyOn(Math, 'random').mockReturnValue(1);
+    xhr.mockRejectedValue(httpFailure(429));
+
+    await expect(xhrWithRetry(URL, { sleep, maxTotalDelayMs: 15_000 })).rejects.toThrow(
+      'HTTP 429 Too Many Requests (after 3 attempts)',
+    );
+
+    expect(delays).toEqual([10_000, 5000]);
+  });
+
+  it('does not retry when the wait budget is zero', async () => {
+    xhr.mockRejectedValue(httpFailure(503, { ...REAL_HEADERS, 'retry-after': '0' }));
+
+    await expect(xhrWithRetry(URL, { sleep, maxTotalDelayMs: 0 })).rejects.toThrow(/^HTTP 503 Service Unavailable$/);
+
+    expect(xhr).toHaveBeenCalledTimes(1);
   });
 
   it('treats Retry-After: 0 as an immediate retry rather than falling back to backoff', async () => {
@@ -259,14 +324,18 @@ describe('xhrWithRetry', () => {
 
     await expect(xhrWithRetry(URL, { sleep })).rejects.toBeDefined();
 
-    expect(delays).toEqual([375, 750, 1500]);
+    expect(delays).toEqual([750, 1500, 3000, 6000]);
   });
 
-  it('gives up after the retry budget and rejects with the original rejection', async () => {
+  it('gives up after the retry budget and reports the attempts, keeping the last rejection as the cause', async () => {
     const failure = httpFailure(503);
     xhr.mockRejectedValue(failure);
 
-    await expect(xhrWithRetry(URL, { sleep })).rejects.toBe(failure);
+    const promise = xhrWithRetry(URL, { sleep });
+
+    await expect(promise).rejects.toBeInstanceOf(SchemaFetchError);
+    await expect(promise).rejects.toThrow('HTTP 503 Service Unavailable (after 5 attempts)');
+    await expect(promise).rejects.toMatchObject({ attempts: 5, cause: failure });
 
     expect(xhr).toHaveBeenCalledTimes(SCHEMA_FETCH_MAX_RETRIES + 1);
     expect(sleep).toHaveBeenCalledTimes(SCHEMA_FETCH_MAX_RETRIES);
@@ -276,7 +345,11 @@ describe('xhrWithRetry', () => {
     const failure = httpFailure(404);
     xhr.mockRejectedValue(failure);
 
-    await expect(xhrWithRetry(URL, { sleep })).rejects.toBe(failure);
+    const promise = xhrWithRetry(URL, { sleep });
+
+    // A single attempt needs no attempt count.
+    await expect(promise).rejects.toThrow(/^HTTP 404 Not Found$/);
+    await expect(promise).rejects.toMatchObject({ attempts: 1, cause: failure });
 
     expect(xhr).toHaveBeenCalledTimes(1);
     expect(sleep).not.toHaveBeenCalled();
@@ -305,10 +378,10 @@ describe('xhrWithRetry', () => {
     await expect(xhrWithRetry(URL, { sleep })).rejects.toBeDefined();
 
     expect(consoleDebugSpy).toHaveBeenCalledWith(
-      `Fetch attempt 1/4 of ${URL} failed: HTTP 503 Service Unavailable; retrying in 375ms`,
+      `Fetch attempt 1/5 of ${URL} failed: HTTP 503 Service Unavailable; retrying in 750ms`,
     );
     expect(consoleDebugSpy).toHaveBeenCalledWith(
-      `Fetch of ${URL} failed after 4 attempt(s): HTTP 503 Service Unavailable`,
+      `Fetch of ${URL} failed after 5 attempt(s): HTTP 503 Service Unavailable`,
     );
   });
 

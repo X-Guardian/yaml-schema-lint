@@ -586,9 +586,9 @@ describe('fetchSchemaStoreSchemas', () => {
     await expect(promise).rejects.toThrow(
       'Failed to fetch the Schema Store catalog from https://www.schemastore.org/api/json/catalog.json: ' +
         'Unable to connect to https://www.schemastore.org/api/json/catalog.json through a proxy. ' +
-        'Error: connect ECONNREFUSED 127.0.0.1:1. Use --no-schema-store to skip it.',
+        'Error: connect ECONNREFUSED 127.0.0.1:1 (after 5 attempts). Use --no-schema-store to skip it.',
     );
-    expect(xhr).toHaveBeenCalledTimes(4);
+    expect(xhr).toHaveBeenCalledTimes(5);
     expect(writeSpy).not.toHaveBeenCalled();
 
     statSpy.mockRestore();
@@ -719,12 +719,12 @@ describe('createLanguageService schema fetch retries', () => {
     const results = await lintFiles(service, ['/tmp/retry-exhausted.yaml']);
 
     expect(results[0].diagnostics.map((d) => d.message)).toEqual([
-      `Unable to load schema from '${schemaUri}': HTTP 503 Service Unavailable.`,
+      `Unable to load schema from '${schemaUri}': HTTP 503 Service Unavailable (after 5 attempts).`,
     ]);
     // The language server reports this as a warning; the file was not checked, so it is promoted to an error.
     expect(results[0].diagnostics[0].severity).toBe(DiagnosticSeverity.Error);
-    expect(xhr).toHaveBeenCalledTimes(4);
-    expect(sleep).toHaveBeenCalledTimes(3);
+    expect(xhr).toHaveBeenCalledTimes(5);
+    expect(sleep).toHaveBeenCalledTimes(4);
   });
 
   it('does not retry a permanent 404', async () => {
@@ -741,6 +741,18 @@ describe('createLanguageService schema fetch retries', () => {
     expect(sleep).not.toHaveBeenCalled();
   });
 
+  it('reports the attempt count when a rate limit outlasts the retries', async () => {
+    xhr.mockRejectedValue(httpFailure(429));
+
+    const service = createLanguageService(schemas, [], { sleep });
+    const results = await lintFiles(service, ['/tmp/retry-rate-limited.yaml']);
+
+    expect(results[0].diagnostics.map((d) => d.message)).toEqual([
+      `Unable to load schema from '${schemaUri}': HTTP 429 Too Many Requests (after 5 attempts).`,
+    ]);
+    expect(results[0].diagnostics[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
   it('reuses a failed schema load for later files instead of requesting again', async () => {
     xhr.mockRejectedValue(httpFailure(503));
 
@@ -751,6 +763,6 @@ describe('createLanguageService schema fetch retries', () => {
     expect(results[0].diagnostics).toHaveLength(1);
     expect(results[1].diagnostics).toHaveLength(1);
     // The language service caches the failed load, so the retry budget is spent once, inside the request service.
-    expect(xhr).toHaveBeenCalledTimes(4);
+    expect(xhr).toHaveBeenCalledTimes(5);
   });
 });

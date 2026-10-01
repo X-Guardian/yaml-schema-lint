@@ -10,6 +10,7 @@ import {
   DEFAULT_CACHE_DIR,
   DEFAULT_CACHE_TTL_SECONDS,
   DEFAULT_IGNORE_PATTERNS,
+  DEFAULT_MAX_RETRY_WAIT_SECONDS,
   DEFAULT_SETTINGS_PATH,
 } from './constants';
 import { createCommandOptions } from './test-utils';
@@ -47,6 +48,8 @@ function buildCommand() {
   cmd.configureOutput({ outputError: (str: string) => str });
   return cmd;
 }
+
+const defaultRetryOptions = { maxTotalDelayMs: DEFAULT_MAX_RETRY_WAIT_SECONDS * 1000 };
 
 const baseOptionsBuilder = createCommandOptions('').addOption(CMD_OPTIONS.debug, 'false');
 
@@ -97,11 +100,11 @@ describe('yaml-schema-lint command', () => {
     const args = [...baseOptionsBuilder.build(), 'test.yaml'];
     await command.parseAsync(args, { from: 'user' });
 
-    expect(fetchSchemaStoreSchemasSpy).toHaveBeenCalledWith({
-      cacheDir: DEFAULT_CACHE_DIR,
-      cacheTtlSeconds: DEFAULT_CACHE_TTL_SECONDS,
-    });
-    expect(createLanguageServiceSpy).toHaveBeenCalledWith(mockSchemaStoreSchemas, []);
+    expect(fetchSchemaStoreSchemasSpy).toHaveBeenCalledWith(
+      { cacheDir: DEFAULT_CACHE_DIR, cacheTtlSeconds: DEFAULT_CACHE_TTL_SECONDS },
+      defaultRetryOptions,
+    );
+    expect(createLanguageServiceSpy).toHaveBeenCalledWith(mockSchemaStoreSchemas, [], defaultRetryOptions);
   });
 
   it('merges local schema settings with schema store schemas', async () => {
@@ -114,7 +117,11 @@ describe('yaml-schema-lint command', () => {
     const args = [...baseOptionsBuilder.build(), 'test.yaml'];
     await command.parseAsync(args, { from: 'user' });
 
-    expect(createLanguageServiceSpy).toHaveBeenCalledWith([...localSchemas, ...storeSchemas], ['!Ref']);
+    expect(createLanguageServiceSpy).toHaveBeenCalledWith(
+      [...localSchemas, ...storeSchemas],
+      ['!Ref'],
+      defaultRetryOptions,
+    );
   });
 
   it('skips schema store when --no-schema-store is specified', async () => {
@@ -314,14 +321,44 @@ describe('yaml-schema-lint command', () => {
     const args = [...baseOptionsBuilder.clone().addOption(CMD_OPTIONS.cacheDir, '/custom/cache').build(), 'test.yaml'];
     await command.parseAsync(args, { from: 'user' });
 
-    expect(fetchSchemaStoreSchemasSpy).toHaveBeenCalledWith(expect.objectContaining({ cacheDir: '/custom/cache' }));
+    expect(fetchSchemaStoreSchemasSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ cacheDir: '/custom/cache' }),
+      defaultRetryOptions,
+    );
   });
 
   it('passes custom --cache-ttl to fetchSchemaStoreSchemas', async () => {
     const args = [...baseOptionsBuilder.clone().addOption(CMD_OPTIONS.cacheTtl, '7200').build(), 'test.yaml'];
     await command.parseAsync(args, { from: 'user' });
 
-    expect(fetchSchemaStoreSchemasSpy).toHaveBeenCalledWith(expect.objectContaining({ cacheTtlSeconds: 7200 }));
+    expect(fetchSchemaStoreSchemasSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ cacheTtlSeconds: 7200 }),
+      defaultRetryOptions,
+    );
+  });
+
+  it('passes --max-retry-wait to schema store and schema fetches in milliseconds', async () => {
+    const args = [...baseOptionsBuilder.clone().addOption(CMD_OPTIONS.maxRetryWait, '2.5').build(), 'test.yaml'];
+    await command.parseAsync(args, { from: 'user' });
+
+    const retryOptions = { maxTotalDelayMs: 2500 };
+    expect(fetchSchemaStoreSchemasSpy).toHaveBeenCalledWith(expect.anything(), retryOptions);
+    expect(createLanguageServiceSpy).toHaveBeenCalledWith([], [], retryOptions);
+  });
+
+  it('accepts --max-retry-wait 0 to disable retrying', async () => {
+    const args = [...baseOptionsBuilder.clone().addOption(CMD_OPTIONS.maxRetryWait, '0').build(), 'test.yaml'];
+    await command.parseAsync(args, { from: 'user' });
+
+    expect(createLanguageServiceSpy).toHaveBeenCalledWith([], [], { maxTotalDelayMs: 0 });
+  });
+
+  it.each(['-1', 'soon', ''])('rejects an invalid --max-retry-wait of %j', async (value) => {
+    const args = [...baseOptionsBuilder.clone().addOption(CMD_OPTIONS.maxRetryWait, value).build(), 'test.yaml'];
+
+    await expect(command.parseAsync(args, { from: 'user' })).rejects.toThrow(
+      'Expected a non-negative number of seconds.',
+    );
   });
 
   it('accepts patterns before options', async () => {
