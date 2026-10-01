@@ -5,13 +5,14 @@
 /** https://nodejs.org/api/fs.html */
 import fs from 'node:fs';
 /** https://www.npmjs.com/package/@commander-js/extra-typings */
-import { Command, Option } from '@commander-js/extra-typings';
+import { Command, InvalidArgumentError, Option } from '@commander-js/extra-typings';
 
 import {
   CMD_OPTIONS,
   DEFAULT_CACHE_DIR,
   DEFAULT_CACHE_TTL_SECONDS,
   DEFAULT_IGNORE_PATTERNS,
+  DEFAULT_MAX_RETRY_WAIT_SECONDS,
   DEFAULT_SETTINGS_PATH,
   FAIL_EXIT_CODE,
   FORMAT_CHOICES,
@@ -51,6 +52,14 @@ export function createProgram() {
         .default(DEFAULT_CACHE_TTL_SECONDS),
     )
     .addOption(
+      new Option(
+        `${CMD_OPTIONS.maxRetryWait} <seconds>`,
+        'Maximum total wait in seconds between retries of one schema or catalog fetch (0 disables retrying)',
+      )
+        .argParser(parseNonNegativeSeconds)
+        .default(DEFAULT_MAX_RETRY_WAIT_SECONDS),
+    )
+    .addOption(
       new Option(`${CMD_OPTIONS.format} <name>`, 'Output file format')
         .choices(FORMAT_CHOICES)
         .default(FORMAT_CHOICES[0]),
@@ -77,11 +86,26 @@ export function createProgram() {
 
 export const program = createProgram();
 
+/**
+ * Parse a CLI value as a non-negative number of seconds.
+ * @param value The raw option value
+ * @returns The number of seconds
+ * @throws {InvalidArgumentError} When the value is not a non-negative number
+ */
+function parseNonNegativeSeconds(value: string): number {
+  const seconds = Number(value);
+  if (value.trim() === '' || !Number.isFinite(seconds) || seconds < 0) {
+    throw new InvalidArgumentError('Expected a non-negative number of seconds.');
+  }
+  return seconds;
+}
+
 interface CmdOptions {
   settingsPath: string;
   schemaStore: boolean;
   cacheDir: string;
   cacheTtl: number;
+  maxRetryWait: number;
   format: string;
   outputFile?: string;
   ignore: string[];
@@ -119,20 +143,24 @@ export async function main(patterns: string[], options: CmdOptions) {
     consoleDebug(`Loaded ${String(settings.schemas.length)} schema association(s) from ${options.settingsPath}`);
 
     const allSchemas = [...settings.schemas];
+    const retryOptions = { maxTotalDelayMs: options.maxRetryWait * 1000 };
 
     if (options.schemaStore) {
       console.log('Loading schemas from schemastore.org...');
-      const schemaStoreSchemas = await fetchSchemaStoreSchemas({
-        cacheDir: options.cacheDir,
-        cacheTtlSeconds: options.cacheTtl,
-      });
+      const schemaStoreSchemas = await fetchSchemaStoreSchemas(
+        {
+          cacheDir: options.cacheDir,
+          cacheTtlSeconds: options.cacheTtl,
+        },
+        retryOptions,
+      );
       consoleDebug(`Loaded ${String(schemaStoreSchemas.length)} schema(s) from Schema Store`);
       allSchemas.push(...schemaStoreSchemas);
     }
 
     consoleDebug(`Total schema associations: ${String(allSchemas.length)}`);
 
-    const languageService = createLanguageService(allSchemas, settings.customTags);
+    const languageService = createLanguageService(allSchemas, settings.customTags, retryOptions);
 
     console.log(`Linting ${String(files.length)} file(s)...\n`);
 

@@ -67,7 +67,7 @@ function getUriScheme(uri: string): string {
  * Retries happen here rather than around validation: the yaml-language-server caches the outcome of each schema
  * load for the lifetime of the LanguageService, so a request that fails once would otherwise fail every file
  * matched to that schema for the whole run.
- * @param retryOptions Overrides for the http(s) retry behaviour, used by tests
+ * @param retryOptions Overrides for the http(s) retry behaviour
  * @returns A function that resolves a schema URI to its content
  */
 export function createSchemaRequestService(
@@ -117,7 +117,7 @@ interface SchemaStoreCatalog {
 
 /**
  * Fetch the raw Schema Store catalog from the network.
- * @param retryOptions Overrides for the http(s) retry behaviour, used by tests
+ * @param retryOptions Overrides for the http(s) retry behaviour
  * @returns The parsed catalog object
  * @throws {ManagedError} When the catalog cannot be fetched after retries
  */
@@ -188,7 +188,7 @@ function extractYamlSchemas(catalog: SchemaStoreCatalog): SchemasSettings[] {
  * from disk. Otherwise it is fetched from the network and written to the
  * cache directory.
  * @param options Cache directory and TTL configuration
- * @param retryOptions Overrides for the http(s) retry behaviour, used by tests
+ * @param retryOptions Overrides for the http(s) retry behaviour
  * @returns Schema associations from the Schema Store
  */
 export async function fetchSchemaStoreSchemas(
@@ -218,7 +218,7 @@ export async function fetchSchemaStoreSchemas(
  * Create and configure a yaml-language-server LanguageService instance.
  * @param schemas Schema associations to configure
  * @param customTags Custom YAML tags to register
- * @param retryOptions Overrides for the http(s) schema fetch retry behaviour, used by tests
+ * @param retryOptions Overrides for the http(s) schema fetch retry behaviour
  * @returns A configured LanguageService
  */
 export function createLanguageService(

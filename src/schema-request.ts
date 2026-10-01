@@ -6,11 +6,15 @@ import { setTimeout as sleepFor } from 'node:timers/promises';
 import { xhr, type XHRResponse } from 'request-light';
 
 import {
+  DEFAULT_MAX_RETRY_WAIT_SECONDS,
+  RATE_LIMITED_HTTP_STATUS,
   RETRYABLE_HTTP_STATUSES,
   SCHEMA_FETCH_BASE_DELAY_MS,
   SCHEMA_FETCH_HEADERS,
   SCHEMA_FETCH_MAX_DELAY_MS,
   SCHEMA_FETCH_MAX_RETRIES,
+  SCHEMA_FETCH_RATE_LIMIT_BASE_DELAY_MS,
+  SCHEMA_FETCH_RATE_LIMIT_MAX_DELAY_MS,
 } from './constants';
 import type { SchemaFetchRetryOptions } from './interfaces';
 import { consoleDebug } from './utils';
@@ -20,8 +24,33 @@ export const DEFAULT_SCHEMA_FETCH_RETRY_OPTIONS: SchemaFetchRetryOptions = {
   maxRetries: SCHEMA_FETCH_MAX_RETRIES,
   baseDelayMs: SCHEMA_FETCH_BASE_DELAY_MS,
   maxDelayMs: SCHEMA_FETCH_MAX_DELAY_MS,
+  rateLimitBaseDelayMs: SCHEMA_FETCH_RATE_LIMIT_BASE_DELAY_MS,
+  rateLimitMaxDelayMs: SCHEMA_FETCH_RATE_LIMIT_MAX_DELAY_MS,
+  maxTotalDelayMs: DEFAULT_MAX_RETRY_WAIT_SECONDS * 1000,
   sleep: (ms) => sleepFor(ms),
 };
+
+/**
+ * The final failure of a fetch made by {@link xhrWithRetry}. Its message is the reason for the last failure plus how
+ * many attempts were made, so a report shows that retrying happened; the last rejection is kept as `cause`.
+ */
+export class SchemaFetchError extends Error {
+  /**
+   * @param cause The rejection from the last attempt
+   * @param attempts How many requests were made in total
+   * @param note Why retrying stopped early, when it was not for lack of attempts
+   */
+  constructor(
+    cause: unknown,
+    readonly attempts: number,
+    note?: string,
+  ) {
+    const details = [attempts > 1 ? `after ${String(attempts)} attempts` : undefined, note].filter(Boolean);
+    const reason = describeXhrError(cause);
+    super(details.length > 0 ? `${reason} (${details.join('; ')})` : reason, { cause });
+    this.name = 'SchemaFetchError';
+  }
+}
 
 /**
  * Check whether a rejection is the response-shaped object that request-light's `xhr` rejects with.
@@ -124,38 +153,87 @@ export function computeBackoffMs(
   return Math.round(half + Math.random() * half);
 }
 
+/** The outcome of deciding whether, and how long, to wait before the next attempt. */
+type RetryPlan = { delayMs: number } | { giveUp: string | undefined };
+
+/**
+ * Decide how long to wait before retrying a failed fetch, if at all.
+ *
+ * A server-supplied `Retry-After` is honoured when it fits in the remaining wait budget; when it does not, the fetch
+ * gives up at once rather than retrying before the server said it would succeed. Otherwise a rate-limited (429)
+ * response backs off on the slow schedule, which spans a typical per-minute rate-limit window, and other failures on
+ * the fast one, which suits momentary outages. A backoff delay is trimmed to the remaining budget.
+ * @param error The rejection from `xhr`
+ * @param attempt The zero-based index of the attempt that just failed
+ * @param remainingMs The wait budget left, in milliseconds
+ * @param options The retry behaviour
+ * @returns The delay before the next attempt, or a reason to give up (undefined when the reason is obvious)
+ */
+function planRetry(error: unknown, attempt: number, remainingMs: number, options: SchemaFetchRetryOptions): RetryPlan {
+  if (attempt >= options.maxRetries || !isRetryableXhrError(error) || remainingMs <= 0) {
+    return { giveUp: undefined };
+  }
+
+  const response = error as XHRResponse;
+  const retryAfterMs = parseRetryAfterMs(response.headers);
+  if (retryAfterMs !== undefined) {
+    return retryAfterMs <= remainingMs
+      ? { delayMs: retryAfterMs }
+      : { giveUp: `server asked to retry in ${formatSeconds(retryAfterMs)}, beyond the retry wait limit` };
+  }
+
+  const backoffMs =
+    response.status === RATE_LIMITED_HTTP_STATUS
+      ? computeBackoffMs(attempt, {
+          baseDelayMs: options.rateLimitBaseDelayMs,
+          maxDelayMs: options.rateLimitMaxDelayMs,
+        })
+      : computeBackoffMs(attempt, options);
+  return { delayMs: Math.min(backoffMs, remainingMs) };
+}
+
+/**
+ * Format a duration in milliseconds as whole seconds, rounding up so a short wait never reads as zero.
+ * @param ms The duration in milliseconds
+ * @returns The duration, e.g. `60s`
+ */
+function formatSeconds(ms: number): string {
+  return `${String(Math.ceil(ms / 1000))}s`;
+}
+
 /**
  * Fetch a URL with request-light's `xhr`, retrying a bounded number of times when the failure looks temporary.
  *
- * A server-supplied `Retry-After` is honoured in preference to backoff. Either delay is capped at `maxDelayMs`.
- * A failure that is not retryable, or that exhausts the budget, is rethrown unchanged so callers can inspect the
- * original rejection.
+ * The total time spent waiting between attempts is capped at `maxTotalDelayMs`; see {@link planRetry} for how each
+ * delay is chosen.
  * @param url The URL to fetch
  * @param options Overrides for the retry behaviour; unspecified fields use {@link DEFAULT_SCHEMA_FETCH_RETRY_OPTIONS}
  * @returns The successful response
+ * @throws {SchemaFetchError} When the last attempt fails, with that attempt's rejection as `cause`
  */
 export async function xhrWithRetry(url: string, options: Partial<SchemaFetchRetryOptions> = {}): Promise<XHRResponse> {
   const retryOptions: SchemaFetchRetryOptions = { ...DEFAULT_SCHEMA_FETCH_RETRY_OPTIONS, ...options };
   const totalAttempts = retryOptions.maxRetries + 1;
+  let waitedMs = 0;
 
   for (let attempt = 0; ; attempt++) {
     try {
       return await xhr({ url, followRedirects: 5, headers: SCHEMA_FETCH_HEADERS });
     } catch (error: unknown) {
       const reason = describeXhrError(error);
+      const plan = planRetry(error, attempt, retryOptions.maxTotalDelayMs - waitedMs, retryOptions);
 
-      if (attempt >= retryOptions.maxRetries || !isRetryableXhrError(error)) {
-        consoleDebug(`Fetch of ${url} failed after ${String(attempt + 1)} attempt(s): ${reason}`);
-        throw error;
+      if ('giveUp' in plan) {
+        const note = plan.giveUp ? `; ${plan.giveUp}` : '';
+        consoleDebug(`Fetch of ${url} failed after ${String(attempt + 1)} attempt(s): ${reason}${note}`);
+        throw new SchemaFetchError(error, attempt + 1, plan.giveUp);
       }
 
-      const retryAfterMs = isXhrResponse(error) ? parseRetryAfterMs(error.headers) : undefined;
-      const delayMs = Math.min(retryAfterMs ?? computeBackoffMs(attempt, retryOptions), retryOptions.maxDelayMs);
-
       consoleDebug(
-        `Fetch attempt ${String(attempt + 1)}/${String(totalAttempts)} of ${url} failed: ${reason}; retrying in ${String(delayMs)}ms`,
+        `Fetch attempt ${String(attempt + 1)}/${String(totalAttempts)} of ${url} failed: ${reason}; retrying in ${String(plan.delayMs)}ms`,
       );
-      await retryOptions.sleep(delayMs);
+      waitedMs += plan.delayMs;
+      await retryOptions.sleep(plan.delayMs);
     }
   }
 }

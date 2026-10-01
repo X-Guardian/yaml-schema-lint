@@ -31,8 +31,17 @@ export interface SchemaFetchRetryOptions {
   maxRetries: number;
   /** Base delay for exponential backoff, in milliseconds. */
   baseDelayMs: number;
-  /** Upper bound for a single delay, in milliseconds. Applies to backoff and to a server's `Retry-After`. */
+  /** Upper bound for a single backoff delay, in milliseconds. */
   maxDelayMs: number;
+  /** Base delay for exponential backoff after a rate-limited (429) response, in milliseconds. */
+  rateLimitBaseDelayMs: number;
+  /** Upper bound for a single backoff delay after a rate-limited (429) response, in milliseconds. */
+  rateLimitMaxDelayMs: number;
+  /**
+   * Upper bound for the total time spent waiting between attempts, in milliseconds. A server's `Retry-After` is
+   * honoured only while it fits in the remaining budget. Zero disables retrying.
+   */
+  maxTotalDelayMs: number;
   /** Waits for the given number of milliseconds. Injectable so tests do not sleep. */
   sleep: (ms: number) => Promise<void>;
 }

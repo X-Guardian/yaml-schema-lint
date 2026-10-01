@@ -26,18 +26,19 @@ yaml-schema-lint [options] <patterns...>
 
 ### Options
 
-| Option                   | Default                   | Description                                                                     |
-| ------------------------ | ------------------------- | ------------------------------------------------------------------------------- |
-| `--settings-path <path>` | `.vscode/settings.json`   | Path to a JSON settings file containing `yaml.schemas` and `yaml.customTags`.   |
-| `--no-schema-store`      | _(enabled)_               | Disable fetching schemas from schemastore.org.                                  |
-| `--cache-dir <path>`     | `.cache/yaml-schema-lint` | Directory for caching the Schema Store catalog.                                 |
-| `--cache-ttl <seconds>`  | `86400` (24h)             | How long the cached Schema Store catalog is considered fresh.                   |
-| `--format <name>`        | `gitlab-codequality`      | Output file format when `--output-file` is used (`gitlab-codequality`, `json`). |
-| `--output-file <path>`   | _(none)_                  | Write an additional report file in the chosen format.                           |
-| `--ignore <patterns>`    | `**/node_modules/**`      | Comma-separated glob patterns to exclude from file matching.                    |
-| `--no-fail-on-warnings`  | _(disabled)_              | Do not exit with an error when only warnings are found.                         |
-| `--no-fail-on-no-files`  | _(disabled)_              | Exit successfully when no files match the patterns.                             |
-| `--debug`                | `false`                   | Enable debug logging.                                                           |
+| Option                       | Default                   | Description                                                                               |
+| ---------------------------- | ------------------------- | ----------------------------------------------------------------------------------------- |
+| `--settings-path <path>`     | `.vscode/settings.json`   | Path to a JSON settings file containing `yaml.schemas` and `yaml.customTags`.             |
+| `--no-schema-store`          | _(enabled)_               | Disable fetching schemas from schemastore.org.                                            |
+| `--cache-dir <path>`         | `.cache/yaml-schema-lint` | Directory for caching the Schema Store catalog.                                           |
+| `--cache-ttl <seconds>`      | `86400` (24h)             | How long the cached Schema Store catalog is considered fresh.                             |
+| `--max-retry-wait <seconds>` | `60`                      | Maximum total wait between retries of one schema or catalog fetch. `0` disables retrying. |
+| `--format <name>`            | `gitlab-codequality`      | Output file format when `--output-file` is used (`gitlab-codequality`, `json`).           |
+| `--output-file <path>`       | _(none)_                  | Write an additional report file in the chosen format.                                     |
+| `--ignore <patterns>`        | `**/node_modules/**`      | Comma-separated glob patterns to exclude from file matching.                              |
+| `--no-fail-on-warnings`      | _(disabled)_              | Do not exit with an error when only warnings are found.                                   |
+| `--no-fail-on-no-files`      | _(disabled)_              | Exit successfully when no files match the patterns.                                       |
+| `--debug`                    | `false`                   | Enable debug logging.                                                                     |
 
 ## Examples
 
@@ -76,9 +77,15 @@ Schemas are resolved from three sources, in order of priority:
 
 ### Network retries
 
-Fetching a remote schema or the Schema Store catalog is retried up to 3 times when the failure looks temporary: an HTTP `429`, `502`, `503` or `504`, or a connection-level failure such as a refused, reset or unresolved connection. A server-supplied `Retry-After` header is honoured; otherwise the delay grows exponentially with jitter from 0.5 s, capped at 5 s per attempt. Other responses such as `404` or `403` are not retried.
+Fetching a remote schema or the Schema Store catalog is retried up to 4 times when the failure looks temporary: an HTTP `429`, `500`, `502`, `503` or `504`, or a connection-level failure such as a refused, reset or unresolved connection. Other responses such as `404`, `403` or `501` are not retried.
 
-If a schema still cannot be loaded, the affected files receive an error of the form `Unable to load schema from '<uri>': <reason>.`. Run with `--debug` to see each attempt and the reason it failed.
+The delay before each retry depends on the failure:
+
+- **`Retry-After`** -- A server-supplied `Retry-After` header is honoured, provided it fits in the remaining retry wait. If the server asks for a longer wait, the fetch gives up immediately rather than retrying before the server says it will succeed.
+- **`429 Too Many Requests`** -- Rate limits are usually enforced over a window of a minute or so, so retrying within seconds cannot succeed. Without `Retry-After`, the delay grows exponentially with jitter from 10 s, capped at 30 s per attempt.
+- **`500`, `502`, `503`, `504` and connection failures** -- These are usually short-lived (a restarting backend, a failover or a dropped connection). Without `Retry-After`, the delay grows exponentially with jitter from 1 s, about 7.5-15 s in total.
+
+The total time spent waiting between attempts of one fetch is capped by `--max-retry-wait` (default 60 s). The Schema Store catalog is fetched before any schema, so a run can wait up to twice this limit in the worst case.
 
 ## Output
 

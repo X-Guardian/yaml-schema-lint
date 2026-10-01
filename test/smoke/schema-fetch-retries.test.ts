@@ -33,6 +33,8 @@ let hits: number;
 let failuresRemaining: number;
 /** HTTP status sent for a failed request. */
 let statusOnFailure: number;
+/** `Retry-After` header sent with a failed request. */
+let retryAfterOnFailure: string;
 
 /**
  * Run the bundled CLI in the working directory without blocking the event loop.
@@ -52,8 +54,7 @@ beforeAll(async () => {
     hits++;
     if (failuresRemaining > 0) {
       failuresRemaining--;
-      // Retry-After: 0 keeps the test fast while still exercising the header path.
-      res.writeHead(statusOnFailure, { 'Retry-After': '0' });
+      res.writeHead(statusOnFailure, { 'Retry-After': retryAfterOnFailure });
       res.end();
       return;
     }
@@ -84,6 +85,8 @@ beforeEach(() => {
   hits = 0;
   failuresRemaining = 0;
   statusOnFailure = 503;
+  // Retry-After: 0 keeps the tests fast while still exercising the header path.
+  retryAfterOnFailure = '0';
 });
 
 describe('schema fetch retries', () => {
@@ -115,12 +118,43 @@ describe('schema fetch retries', () => {
 
     const result = await run(['--no-schema-store', '--settings-path', RETRY_SETTINGS, 'valid.yml']);
 
-    // The initial attempt plus 3 retries.
-    expect(hits).toBe(4);
+    // The initial attempt plus 4 retries.
+    expect(hits).toBe(5);
     expect(output(result)).toContain('Unable to load schema from');
-    expect(output(result)).toContain('HTTP 503 Service Unavailable');
+    expect(output(result)).toContain('HTTP 503 Service Unavailable (after 5 attempts)');
     // An unloadable schema is reported as an error, not a warning.
     expect(output(result)).toContain('1 error(s), 0 warning(s)');
+    expect(result.status).toBe(FAIL_EXIT_CODE);
+  });
+
+  it('gives up at once on a 429 whose Retry-After exceeds --max-retry-wait', async () => {
+    failuresRemaining = Number.POSITIVE_INFINITY;
+    statusOnFailure = 429;
+    retryAfterOnFailure = '120';
+
+    const result = await run(['--no-schema-store', '--settings-path', RETRY_SETTINGS, 'valid.yml']);
+
+    expect(hits).toBe(1);
+    expect(output(result)).toContain(
+      'HTTP 429 Too Many Requests (server asked to retry in 120s, beyond the retry wait limit)',
+    );
+    expect(result.status).toBe(FAIL_EXIT_CODE);
+  });
+
+  it('does not retry when --max-retry-wait is 0', async () => {
+    failuresRemaining = Number.POSITIVE_INFINITY;
+
+    const result = await run([
+      '--no-schema-store',
+      '--settings-path',
+      RETRY_SETTINGS,
+      '--max-retry-wait',
+      '0',
+      'valid.yml',
+    ]);
+
+    expect(hits).toBe(1);
+    expect(output(result)).toContain('HTTP 503 Service Unavailable.');
     expect(result.status).toBe(FAIL_EXIT_CODE);
   });
 
@@ -146,9 +180,11 @@ describe('Schema Store catalog fetch', () => {
     const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yaml-schema-lint-smoke-cache-'));
     const env = { ...process.env, HTTPS_PROXY: 'http://127.0.0.1:1', HTTP_PROXY: 'http://127.0.0.1:1' };
 
-    const result = await run(['--cache-dir', cacheDir, 'valid.yml'], env);
+    // A 1s wait budget still exercises retrying but keeps the test fast; unit tests cover the full backoff schedule.
+    const result = await run(['--cache-dir', cacheDir, '--max-retry-wait', '1', 'valid.yml'], env);
 
     expect(result.stderr).toContain('Failed to fetch the Schema Store catalog from');
+    expect(result.stderr).toMatch(/\(after [2-5] attempts\)/);
     expect(result.stderr).toContain('Use --no-schema-store to skip it.');
     expect(output(result)).not.toContain('UnhandledPromiseRejection');
     expect(result.status).toBe(FAIL_EXIT_CODE);
